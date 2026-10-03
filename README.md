@@ -1,22 +1,83 @@
 Language: EN | [简中](README.zh-CN.md)
 
+<p align="center">
+  <img width="168" alt="The Recordly mark in red with gold sparkles and the maintainer's avatar" src="public/app-icons/recordlymac-512.png" />
+</p>
+
+<h1 align="center">Recordly for macOS, with clean audio</h1>
+
+<p align="center">
+  A fork of <a href="https://github.com/webadderallorg/Recordly">Recordly</a> that records clean system and microphone audio on macOS, adds an on-screen picker for windows, screens and any area, and keeps recording still screens until you stop.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-111827?style=for-the-badge" alt="macOS on Apple Silicon" />
+  <img src="https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=for-the-badge" alt="AGPL 3.0 license" />
+</p>
+
+## What this fork changes
+
+| | Upstream Recordly | This fork |
+| --- | --- | --- |
+| **Audio** | Drops 20 ms of audio whenever the encoder is briefly busy and splices the rest together. Tracks run short, click at each splice and drift out of sync; the editor then stretches or delays them to fit the video. | Writes every buffer, fills delivery gaps with silence and keeps every track exactly as long as the video. |
+| **Window recordings** | Lose 25–70% of their audio and run near 46 fps, because each 4K frame is cropped in software. | Lose no audio and run near 57 fps. ScreenCaptureKit crops the display natively. |
+| **After the countdown** | Audio is dropped until something on screen changes. | Audio is kept from the moment recording resumes. |
+| **Still screens** | A still window or area may never start recording, and the video ends at the last screen change. | Recording starts at once and lasts until you press stop. |
+| **Choosing a source** | Lists of screens and windows. | The lists, plus an on-screen picker for windows, screens and any area you drag. |
+| **Updates** | Updates itself from upstream releases. | Never auto-updates. Rebuild the fork to update. |
+
+It also uses Inter for the interface, Berkeley Mono for code when it is installed, and a red icon so it is easy to tell apart from an official install.
+
+## Why upstream audio was garbled
+
+macOS delivers system audio to Recordly in 20 ms buffers. Upstream's capture helper appended each buffer to an AAC encoder and discarded it whenever the encoder reported it was busy. `AVAssetWriter` joins the buffers it receives end to end, so every discarded buffer removed 20 ms from the track and left a click where the neighbors met. Audio shared one queue with video, and in window recordings a software crop of every full-display frame held that queue for up to 200 ms. The audio then arrived in bursts the encoder refused, so a quarter or more of it was lost. The editor saw a track shorter than the video and delayed or time-stretched it, which turned the clicks into garbled, drifting sound.
+
+This fork receives audio on its own queue and writes each source to a timeline track. The track encodes synchronously, so it never refuses a buffer. It places every buffer at its timestamp, fills gaps with silence, trims overlap, and pads the track to the end of the video. Measured on the same machine:
+
+- In a 28-second window recording, macOS delivered 1,404 buffers with no gaps. Upstream kept 1,033 of them and saved 20.7 s of audio. The fork keeps every buffer and saves audio exactly as long as the video.
+- In 30 seconds of real audio, upstream's file had 9 splice clicks, each on a buffer boundary. The fork's had none.
+
+## Using the picker
+
+1. In the recording bar, open the source menu and choose **Select area or window**.
+2. Hover a window to highlight it and click to pick it. Click the desktop to pick the whole screen. Drag anywhere to draw an area.
+3. Drag inside a pick to move it, or drag a handle to resize it. Either turns it into an area.
+4. Press **Record**, **Enter** or double-click to start recording. **Select** picks without recording. **Esc** cancels.
+
+A dashed outline marks the area while it records. The outline sits outside the recorded rectangle and is not captured.
+
+## Build and install (Apple Silicon)
+
+```bash
+git clone https://github.com/Kevin-Liu-01/Recordly.git
+cd Recordly
+npm ci
+npm run build:native-helpers && npx tsc && npx vite build --config vite.config.ts && npm run normalize:electron-main-cjs
+npx electron-builder --mac dir --arm64 --publish never -c.mac.notarize=false
+```
+
+Quit Recordly and copy `release/mac-arm64/Recordly.app` to `/Applications`. The first recording asks for Screen & System Audio Recording, Accessibility, and Microphone or Camera when they are turned on.
+
+Add `-c.mac.identity="<codesigning identity>"` to the `electron-builder` command to sign every build with the same identity, so macOS keeps those permissions across rebuilds. If permissions stop working after the signature changes, run `tccutil reset All dev.recordly.app` and reopen Recordly.
+
+## Staying in sync with upstream
+
+```bash
+git remote add upstream https://github.com/webadderallorg/Recordly.git
+git fetch upstream
+git merge upstream/main
+```
+
+The fork merges upstream instead of rebasing, so its history never needs a force-push.
+
+## Credits and license
+
+Recordly is made by [webadderall](https://github.com/webadderall) and contributors and is licensed under [AGPL-3.0](LICENSE). This fork's changes are released under the same license. Inter is by Rasmus Andersson under the SIL Open Font License and ships in `src/assets/fonts/inter`. Berkeley Mono is a commercial font and is not included; without it, code text uses the system monospace font. Sign-in, cloud sharing and announcements still use upstream's services.
+
+---
+
 > [!NOTE]
-> **This is a fork of [webadderallorg/Recordly](https://github.com/webadderallorg/Recordly) that fixes macOS recording.**
->
-> - **Clean audio.** Upstream's macOS capture helper dropped audio buffers whenever the AAC encoder was busy, so system and microphone audio ran shorter than the video, clicked at every gap, and drifted out of sync. Window recordings lost 25–70% of their audio. This fork writes every buffer, fills delivery gaps with silence, and keeps every track exactly as long as the video.
-> - **Pick on screen.** "Select area or window" in the source menu opens a picker on every display. Hovering highlights the window under the cursor, a click picks that window (or the whole screen over the desktop), and dragging draws an area. Areas and windows are cropped natively by ScreenCaptureKit.
-> - **Still screens.** Recording a window or area that is not changing starts right away and lasts until you stop.
-> - **No upstream auto-updates**, so an official release never replaces these fixes.
->
-> To build and install on Apple Silicon:
->
-> ```bash
-> npm ci
-> npm run build:native-helpers && npx tsc && npx vite build
-> npx electron-builder --mac dir --arm64 -c.mac.notarize=false
-> ```
->
-> Then copy `release/mac-arm64/Recordly.app` to `/Applications`. Add `-c.mac.identity="<codesigning identity>"` to sign with a stable identity, so macOS keeps Screen Recording and Microphone permissions across rebuilds.
+> The rest of this file is the original Recordly README. Its download links point to upstream's official releases, which do not include this fork's changes.
 
 <p align="center">
   <img width="220" alt="Recordly Logo" src="https://github.com/user-attachments/assets/414b8838-6731-45d4-a815-6e3c0aa1fe52" />
