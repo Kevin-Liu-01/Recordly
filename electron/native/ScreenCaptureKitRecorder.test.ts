@@ -74,16 +74,18 @@ describe("ScreenCaptureKitRecorder colour metadata", () => {
 });
 
 describe("ScreenCaptureKitRecorder window capture", () => {
-	it("records the display and crops it to the selected window bounds", () => {
-		expect(recorderSource).not.toContain("streamConfig.sourceRect");
+	it("crops the display natively to the selected window bounds", () => {
 		expect(recorderSource).not.toContain("desktopIndependentWindow");
+		expect(recorderSource).not.toContain("CIContext");
 		expect(recorderSource).toContain(
 			"visibleFrame = CGRect(x: x, y: y, width: width, height: height)",
 		);
 		expect(recorderSource).toContain(
 			"let captureRect = visibleFrame.intersection(display.frame)",
 		);
-		expect(recorderSource).toContain("appendCroppedVideoFrame(sampleBuffer");
+		expect(recorderSource).toContain(
+			"streamConfig.sourceRect = Self.sourceRect(for: captureRect, on: display)",
+		);
 	});
 
 	it("refreshes the crop and capture display while the window moves or resizes", () => {
@@ -91,13 +93,22 @@ describe("ScreenCaptureKitRecorder window capture", () => {
 			"guard let display = Self.captureDisplay(for: window.frame",
 		);
 		expect(recorderSource).toContain("try await activeStream.updateContentFilter(filter)");
-		expect(recorderSource).toContain("self.windowCropRect = cropRect");
+		expect(recorderSource).toContain(
+			"try await activeStream.updateConfiguration(streamConfiguration)",
+		);
+	});
+
+	it("writes the frame that arrived before the writer was ready", () => {
+		expect(recorderSource).toContain("pendingFirstFrame = sampleBuffer");
+		expect(recorderSource).toContain("self.appendPendingFirstFrame(attemptsRemaining: 100)");
 	});
 });
 
-
 describe("ScreenCaptureKitRecorder first frame timing", () => {
-	const callback = recorderSource.slice(recorderSource.indexOf("func stream(_ stream:"), recorderSource.indexOf("func stream(_ stream:") + 5000);
+	const callback = recorderSource.slice(
+		recorderSource.indexOf("func stream(_ stream:"),
+		recorderSource.indexOf("func stream(_ stream:") + 5000,
+	);
 	it("validates a complete frame and writer readiness before setting time zero", () => {
 		const clock = callback.indexOf("adjustedPresentationTime(for:");
 		expect(clock).toBeGreaterThan(callback.indexOf("status == .complete"));
