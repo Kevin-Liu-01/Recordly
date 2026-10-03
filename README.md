@@ -1,5 +1,23 @@
 Language: EN | [简中](README.zh-CN.md)
 
+> [!NOTE]
+> **This is a fork of [webadderallorg/Recordly](https://github.com/webadderallorg/Recordly) that fixes macOS recording.**
+>
+> - **Clean audio.** Upstream's macOS capture helper dropped audio buffers whenever the AAC encoder was busy, so system and microphone audio ran shorter than the video, clicked at every gap, and drifted out of sync. Window recordings lost 25–70% of their audio. This fork writes every buffer, fills delivery gaps with silence, and keeps every track exactly as long as the video.
+> - **Pick on screen.** "Select area or window" in the source menu opens a picker on every display. Hovering highlights the window under the cursor, a click picks that window (or the whole screen over the desktop), and dragging draws an area. Areas and windows are cropped natively by ScreenCaptureKit.
+> - **Still screens.** Recording a window or area that is not changing starts right away and lasts until you stop.
+> - **No upstream auto-updates**, so an official release never replaces these fixes.
+>
+> To build and install on Apple Silicon:
+>
+> ```bash
+> npm ci
+> npm run build:native-helpers && npx tsc && npx vite build
+> npx electron-builder --mac dir --arm64 -c.mac.notarize=false
+> ```
+>
+> Then copy `release/mac-arm64/Recordly.app` to `/Applications`. Add `-c.mac.identity="<codesigning identity>"` to sign with a stable identity, so macOS keeps Screen Recording and Microphone permissions across rebuilds.
+
 <p align="center">
   <img width="220" alt="Recordly Logo" src="https://github.com/user-attachments/assets/414b8838-6731-45d4-a815-6e3c0aa1fe52" />
 </p>
