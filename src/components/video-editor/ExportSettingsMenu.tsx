@@ -41,6 +41,9 @@ interface ExportSettingsMenuProps {
 	gifOutputDimensions: { width: number; height: number };
 	onExport?: () => void;
 	className?: string;
+	hideHeading?: boolean;
+	hideAction?: boolean;
+	linkMode?: boolean;
 }
 
 function Choices<T extends string | number>({
@@ -119,43 +122,50 @@ export function ExportSettingsMenu({
 	gifOutputDimensions,
 	onExport,
 	className,
+	hideHeading = false,
+	hideAction = false,
+	linkMode = false,
 }: ExportSettingsMenuProps) {
 	const tSettings = useScopedT("settings");
 	const isLegacyModel = exportPipelineModel === "legacy";
 
 	return (
 		<Card className={className}>
-			<Card.Header>
-				<Card.Title>{tSettings("export.title", "Export")}</Card.Title>
-			</Card.Header>
+			{!hideHeading && (
+				<Card.Header>
+					<Card.Title>{tSettings("export.title", "Export")}</Card.Title>
+				</Card.Header>
+			)}
 			<Card.Content className="gap-4">
-				<Choices
-					label={tSettings("export.format", "Format")}
-					value={exportFormat}
-					onChange={onExportFormatChange}
-					options={[
-						{
-							value: "mp4",
-							textValue: tSettings("export.mp4"),
-							label: (
-								<span className="flex items-center gap-2">
-									<Film />
-									{tSettings("export.mp4")}
-								</span>
-							),
-						},
-						{
-							value: "gif",
-							textValue: tSettings("export.gif"),
-							label: (
-								<span className="flex items-center gap-2">
-									<Image />
-									{tSettings("export.gif")}
-								</span>
-							),
-						},
-					]}
-				/>
+				{!linkMode && (
+					<Choices
+						label={tSettings("export.format", "Format")}
+						value={exportFormat}
+						onChange={onExportFormatChange}
+						options={[
+							{
+								value: "mp4",
+								textValue: tSettings("export.mp4"),
+								label: (
+									<span className="flex items-center gap-2">
+										<Film />
+										{tSettings("export.mp4")}
+									</span>
+								),
+							},
+							{
+								value: "gif",
+								textValue: tSettings("export.gif"),
+								label: (
+									<span className="flex items-center gap-2">
+										<Image />
+										{tSettings("export.gif")}
+									</span>
+								),
+							},
+						]}
+					/>
+				)}
 				{exportFormat === "mp4" ? (
 					<>
 						<Choices
@@ -256,14 +266,16 @@ export function ExportSettingsMenu({
 					</>
 				)}
 			</Card.Content>
-			<Card.Footer>
-				<Button size="lg" onClick={onExport} className="w-full">
-					<Download />
-					{tSettings("export.exportVideo", undefined, {
-						format: exportFormat === "gif" ? "GIF" : "Video",
-					})}
-				</Button>
-			</Card.Footer>
+			{!hideAction && (
+				<Card.Footer>
+					<Button size="lg" onClick={onExport} className="w-full">
+						<Download />
+						{tSettings("export.exportVideo", undefined, {
+							format: exportFormat === "gif" ? "GIF" : "Video",
+						})}
+					</Button>
+				</Card.Footer>
+			)}
 		</Card>
 	);
 }

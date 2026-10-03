@@ -38,12 +38,14 @@ interface EditorDialogsProps {
 	projectBrowserOpen: boolean;
 	setProjectBrowserOpen: Dispatch<SetStateAction<boolean>>;
 	projectLibraryEntries: ProjectLibraryEntry[];
+	projectLibraryLoading: boolean;
 	projectError: string | null;
 	onDashboardSignIn: () => void;
 	onDeleteProjects: (paths: string[]) => Promise<string[]>;
- onRenameProject: (path: string, name: string) => Promise<string>;
- onShareProject: (path: string) => Promise<void>;
+	onRenameProject: (path: string, name: string) => Promise<string>;
+	onShareProject: (path: string) => Promise<void>;
 	accountLabel?: string;
+	authToken?: string;
 	handleImportMediaOrProject: () => Promise<void>;
 	handleOpenProjectFromLibrary: (projectPath: string) => Promise<unknown>;
 	nativeCaptureUnavailableModalOpen: boolean;
@@ -67,12 +69,14 @@ export function EditorDialogs({
 	projectBrowserOpen,
 	setProjectBrowserOpen,
 	projectLibraryEntries,
+	projectLibraryLoading,
 	projectError,
 	onDashboardSignIn,
 	onDeleteProjects,
- onRenameProject,
- onShareProject,
+	onRenameProject,
+	onShareProject,
 	accountLabel,
+	authToken,
 	handleImportMediaOrProject,
 	handleOpenProjectFromLibrary,
 	nativeCaptureUnavailableModalOpen,
@@ -185,12 +189,14 @@ export function EditorDialogs({
 				open={projectBrowserOpen}
 				onOpenChange={setProjectBrowserOpen}
 				entries={projectLibraryEntries}
+				loading={projectLibraryLoading}
 				error={projectError}
 				onSignIn={onDashboardSignIn}
 				onDeleteProjects={onDeleteProjects}
- onRenameProject={onRenameProject}
- onShareProject={onShareProject}
+				onRenameProject={onRenameProject}
+				onShareProject={onShareProject}
 				accountLabel={accountLabel}
+				authToken={authToken}
 				onImportFile={handleImportMediaOrProject}
 				onOpenProject={handleOpenProjectFromLibrary}
 			/>

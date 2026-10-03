@@ -30,7 +30,7 @@ export function FolderRow({
 	};
 	const edit = () => {
 		setDraft(folder.name);
-		setEditing(true);
+		requestAnimationFrame(() => requestAnimationFrame(() => setEditing(true)));
 	};
 	return (
 		<div
@@ -53,6 +53,7 @@ export function FolderRow({
 				>
 					<Input
 						autoFocus
+						onFocus={(event) => event.currentTarget.select()}
 						aria-label="Folder name"
 						className="h-8 w-full min-w-0 border-0 bg-transparent px-0 text-[13px] shadow-none"
 						value={draft}

@@ -3,6 +3,7 @@ import type { SpeedRegion, TrimRegion } from "@/components/video-editor/types";
 import { getEffectiveVideoStreamDurationSeconds } from "@/lib/mediaTiming";
 import {
 	buildVideoDecodeFailure,
+	buildVideoDecodeRecoveryFailure,
 	type DecodedVideoInfo,
 	getDecodedFrameTimelineOffsetUs,
 	preserveFirstVideoDecodeFailure,
@@ -39,12 +40,77 @@ const STARTUP_MAX_PENDING_FRAMES = 28;
 
 export async function decodeVideoStream(
 	context: StreamingDecodeContext,
+	targetFrameRate: number,
+	trimRegions: TrimRegion[] | undefined,
+	speedRegions: SpeedRegion[] | undefined,
+	onFrame: OnFrameCallback,
+	segmentsOverride?: VideoSegment[],
+): Promise<void> {
+	let emittedFrames = 0;
+	try {
+		await decodeVideoStreamAttempt(
+			context,
+			targetFrameRate,
+			trimRegions,
+			speedRegions,
+			async (...args) => {
+				await onFrame(...args);
+				emittedFrames++;
+			},
+			segmentsOverride,
+		);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		const codec = context.metadata.codec.toLowerCase();
+		// Only retry failures that completed the decode-error cleanup. Configuration
+		// and renderer/encoder callback failures must propagate without replay.
+		if (
+			context.cancelled ||
+			context.decoder !== null ||
+			codec.includes("av01") ||
+			codec.includes("av1") ||
+			!/^\[VIDEO_DECODE_ENCODING_ERROR\]|^\[VIDEO_DECODER_RESOURCE_EXHAUSTED\]/.test(message)
+		) {
+			throw error;
+		}
+		console.warn(
+			"[StreamingVideoDecoder] Decoder failed; replaying with software decoding",
+			error,
+		);
+		// Replay from a keyframe to rebuild decoder state. Output already handed to
+		// the renderer/encoder must not be submitted again.
+		let replayedFrames = 0;
+		try {
+			await decodeVideoStreamAttempt(
+				context,
+				targetFrameRate,
+				trimRegions,
+				speedRegions,
+				async (...args) => {
+					if (replayedFrames++ < emittedFrames) return;
+					await onFrame(...args);
+				},
+				segmentsOverride,
+				true,
+			);
+		} catch (softwareError) {
+			const softwareMessage =
+				softwareError instanceof Error ? softwareError.message : String(softwareError);
+			if (!/^\[VIDEO_(?:DECODE|DECODER|CODEC)_/.test(softwareMessage)) throw softwareError;
+			throw buildVideoDecodeRecoveryFailure(error, softwareError);
+		}
+	}
+}
+
+async function decodeVideoStreamAttempt(
+	context: StreamingDecodeContext,
 
 	targetFrameRate: number,
 	trimRegions: TrimRegion[] | undefined,
 	speedRegions: SpeedRegion[] | undefined,
 	onFrame: OnFrameCallback,
 	segmentsOverride?: VideoSegment[],
+	forceSoftwareDecode = false,
 ): Promise<void> {
 	if (!context.demuxer || !context.metadata) {
 		throw new Error("Must call loadMetadata() before decodeAll()");
@@ -52,7 +118,8 @@ export async function decodeVideoStream(
 
 	const decoderConfig = await context.demuxer.getDecoderConfig("video");
 	const codec = context.metadata.codec.toLowerCase();
-	const shouldPreferSoftwareDecode = codec.includes("av01") || codec.includes("av1");
+	const shouldPreferSoftwareDecode =
+		forceSoftwareDecode || codec.includes("av01") || codec.includes("av1");
 	const effectiveVideoDuration = getEffectiveVideoStreamDurationSeconds({
 		duration: context.metadata.duration,
 		streamDuration: context.metadata.streamDuration,
@@ -157,7 +224,7 @@ export async function decodeVideoStream(
 	try {
 		context.decoder.configure(preferredDecoderConfig);
 	} catch (error) {
-		if (!shouldPreferSoftwareDecode) {
+		if (!shouldPreferSoftwareDecode || forceSoftwareDecode) {
 			throw buildVideoDecodeFailure(error, getDecoderFailureContext());
 		}
 		// Fall back to default decoder config if software preference is unsupported.
@@ -430,8 +497,11 @@ export async function decodeVideoStream(
 		requiredEndSec - lastDecodedFrameSec > 1 &&
 		exportFrameIndex < expectedOutputFrames
 	) {
-		throw new Error(
-			`Video decode ended early at ${lastDecodedFrameSec.toFixed(3)}s (needed ${requiredEndSec.toFixed(3)}s; rendered ${exportFrameIndex}/${expectedOutputFrames} frames).`,
+		throw buildVideoDecodeFailure(
+			new Error(
+				`Video decode ended early at ${lastDecodedFrameSec.toFixed(3)}s (needed ${requiredEndSec.toFixed(3)}s; rendered ${exportFrameIndex}/${expectedOutputFrames} frames).`,
+			),
+			getDecoderFailureContext(),
 		);
 	}
 }

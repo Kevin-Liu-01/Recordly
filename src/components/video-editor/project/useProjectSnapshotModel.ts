@@ -1,6 +1,5 @@
 import { type RefObject, useCallback, useEffect, useMemo } from "react";
 import type { AspectRatio } from "@/utils/aspectRatioUtils";
-import type { useExportSettings } from "../export/useExportSettings";
 import {
 	fromFileUrl,
 	type ProjectEditorState,
@@ -15,7 +14,6 @@ type Input = {
 	project: ReturnType<typeof useProjectState>;
 	appearance: ReturnType<typeof useAppearanceState>;
 	timeline: ReturnType<typeof useTimelineState>;
-	exportSettings: ReturnType<typeof useExportSettings>;
 	aspectRatio: AspectRatio;
 	projectNameInputRef: RefObject<HTMLInputElement | null>;
 	projectSaveDialogInputRef: RefObject<HTMLInputElement | null>;
@@ -26,7 +24,6 @@ export function useProjectSnapshotModel({
 	project,
 	appearance,
 	timeline,
-	exportSettings,
 	aspectRatio,
 	projectNameInputRef,
 	projectSaveDialogInputRef,
@@ -120,15 +117,6 @@ export function useProjectSnapshotModel({
 				autoCaptions: timeline.autoCaptions,
 				autoCaptionSettings: timeline.autoCaptionSettings,
 				aspectRatio,
-				exportEncodingMode: exportSettings.exportEncodingMode,
-				exportBackendPreference: exportSettings.exportBackendPreference,
-				exportPipelineModel: exportSettings.exportPipelineModel,
-				exportQuality: exportSettings.exportQuality,
-				mp4FrameRate: exportSettings.mp4FrameRate,
-				exportFormat: exportSettings.exportFormat,
-				gifFrameRate: exportSettings.gifFrameRate,
-				gifLoop: exportSettings.gifLoop,
-				gifSizePreset: exportSettings.gifSizePreset,
 				sourceAudioTrackSettingsByClip: timeline.sourceAudioTrackSettingsByClip,
 				defaultSourceAudioTrackSettings: timeline.defaultSourceAudioTrackSettings,
 			}),
@@ -182,15 +170,6 @@ export function useProjectSnapshotModel({
 			timeline.autoCaptions,
 			timeline.autoCaptionSettings,
 			aspectRatio,
-			exportSettings.exportEncodingMode,
-			exportSettings.exportBackendPreference,
-			exportSettings.exportPipelineModel,
-			exportSettings.exportQuality,
-			exportSettings.mp4FrameRate,
-			exportSettings.exportFormat,
-			exportSettings.gifFrameRate,
-			exportSettings.gifLoop,
-			exportSettings.gifSizePreset,
 			timeline.sourceAudioTrackSettingsByClip,
 			timeline.defaultSourceAudioTrackSettings,
 			buildPersistedEditorState,

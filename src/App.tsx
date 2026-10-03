@@ -1,6 +1,7 @@
 import { Card } from "@heroui/react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useI18n } from "./contexts/I18nContext";
+import { EditorLoadingSkeleton } from "./components/video-editor/layout/EditorLoadingSkeleton";
 
 const HudWindow = lazy(() => import("./components/launch/HudWindow"));
 const SourceSelector = lazy(() =>
@@ -104,5 +105,9 @@ export default function App() {
 			);
 	}
 
-	return <Suspense fallback={null}>{content}</Suspense>;
+	return (
+		<Suspense fallback={windowType === "editor" ? <EditorLoadingSkeleton /> : null}>
+			{content}
+		</Suspense>
+	);
 }

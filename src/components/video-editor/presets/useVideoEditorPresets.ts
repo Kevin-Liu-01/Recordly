@@ -1,7 +1,6 @@
 import { type Dispatch, type SetStateAction, useCallback, useMemo, useState } from "react";
 import type { AspectRatio } from "@/utils/aspectRatioUtils";
 import { type EditorPresetSnapshot, loadEditorPresets } from "../editorPreferences";
-import type { useExportSettings } from "../export/useExportSettings";
 import type { useAppearanceState } from "../state/useAppearanceState";
 import type { useTimelineState } from "../state/useTimelineState";
 import { useEditorPresets } from "./useEditorPresets";
@@ -10,26 +9,16 @@ type Input = {
 	t: Parameters<typeof useEditorPresets>[0]["t"];
 	appearance: ReturnType<typeof useAppearanceState>;
 	timeline: ReturnType<typeof useTimelineState>;
-	exportSettings: ReturnType<typeof useExportSettings>;
 	aspectRatio: AspectRatio;
 	setAspectRatio: Dispatch<SetStateAction<AspectRatio>>;
-	whisperExecutablePath: string | null;
-	setWhisperExecutablePath: Dispatch<SetStateAction<string | null>>;
-	whisperModelPath: string | null;
-	setWhisperModelPath: Dispatch<SetStateAction<string | null>>;
 };
 
 export function useVideoEditorPresets({
 	t,
 	appearance,
 	timeline,
-	exportSettings,
 	aspectRatio,
 	setAspectRatio,
-	whisperExecutablePath,
-	setWhisperExecutablePath,
-	whisperModelPath,
-	setWhisperModelPath,
 }: Input) {
 	const [editorPresets, setEditorPresets] = useState(() => loadEditorPresets());
 	const [activeEditorPresetId, setActiveEditorPresetId] = useState<string | null>(null);
@@ -79,27 +68,9 @@ export function useVideoEditorPresets({
 			webcam: (({ sourcePath: _sourcePath, visibleRanges: _visibleRanges, ...settings }) =>
 				settings)(appearance.webcam),
 			aspectRatio,
-			exportEncodingMode: exportSettings.exportEncodingMode,
-			exportBackendPreference: exportSettings.exportBackendPreference,
-			exportPipelineModel: exportSettings.exportPipelineModel,
-			exportQuality: exportSettings.exportQuality,
-			mp4FrameRate: exportSettings.mp4FrameRate,
-			exportFormat: exportSettings.exportFormat,
-			gifFrameRate: exportSettings.gifFrameRate,
-			gifLoop: exportSettings.gifLoop,
-			gifSizePreset: exportSettings.gifSizePreset,
 			autoCaptionSettings: { ...timeline.autoCaptionSettings },
-			whisperExecutablePath,
-			whisperModelPath,
 		}),
-		[
-			appearance,
-			timeline.autoCaptionSettings,
-			exportSettings,
-			aspectRatio,
-			whisperExecutablePath,
-			whisperModelPath,
-		],
+		[appearance, timeline.autoCaptionSettings, aspectRatio],
 	);
 
 	const applySnapshot = useCallback(
@@ -147,27 +118,9 @@ export function useVideoEditorPresets({
 				visibleRanges: current.visibleRanges,
 			}));
 			setAspectRatio(snapshot.aspectRatio);
-			exportSettings.setExportEncodingMode(snapshot.exportEncodingMode);
-			exportSettings.setExportBackendPreference(snapshot.exportBackendPreference);
-			exportSettings.setExportPipelineModel(snapshot.exportPipelineModel);
-			exportSettings.setExportQuality(snapshot.exportQuality);
-			exportSettings.setMp4FrameRate(snapshot.mp4FrameRate);
-			exportSettings.setExportFormat(snapshot.exportFormat);
-			exportSettings.setGifFrameRate(snapshot.gifFrameRate);
-			exportSettings.setGifLoop(snapshot.gifLoop);
-			exportSettings.setGifSizePreset(snapshot.gifSizePreset);
 			timeline.setAutoCaptionSettings({ ...snapshot.autoCaptionSettings });
-			setWhisperExecutablePath(snapshot.whisperExecutablePath);
-			setWhisperModelPath(snapshot.whisperModelPath);
 		},
-		[
-			appearance,
-			exportSettings,
-			timeline,
-			setAspectRatio,
-			setWhisperExecutablePath,
-			setWhisperModelPath,
-		],
+		[appearance, timeline, setAspectRatio],
 	);
 
 	const actions = useEditorPresets({

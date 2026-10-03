@@ -1,5 +1,6 @@
+import { removeProjectShareLinks } from "../cloud/projectShareLinks";
 import { useRawLibrary } from "./useRawLibrary";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import type { ProjectLibraryEntry } from "../ProjectBrowserDialog";
 import type { DashboardProps } from "./types";
@@ -16,7 +17,6 @@ export function useDashboardModel({
 	const { metadata, update } = useDashboardMetadata();
 	const [selecting, setSelecting] = useState(false);
 	const [selected, setSelected] = useState<string[]>([]);
-	const [confirmDelete, setConfirmDelete] = useState(false);
 	const toggleSelected = (path: string) =>
 		setSelected((prev) =>
 			prev.includes(path) ? prev.filter((p) => p !== path) : [...prev, path],
@@ -41,6 +41,14 @@ export function useDashboardModel({
 	const [sort, setSort] = useState("recent");
 	const [section, changeSection] = useState("projects");
 	const [library, setLibrary] = useState("projects");
+	useEffect(() => {
+		if (!open) return;
+		changeSection("projects");
+		setLibrary("projects");
+		setQuery("");
+		setSelecting(false);
+		setSelected([]);
+	}, [open]);
 	const raw = useRawLibrary(open && library === "raw");
 	const [rawPreview, setRawPreview] = useState<ProjectLibraryEntry | null>(null);
 	const isRaw = library === "raw";
@@ -90,6 +98,20 @@ export function useDashboardModel({
 			setBusy(false);
 		}
 	};
+	const deleteEntries = (paths: string[]) =>
+		run(async () => {
+			const deleted = await (isRaw ? raw.remove : onDeleteProjects)(paths);
+			removeProjectShareLinks(deleted);
+			save(
+				folders.map((folder) => ({
+					...folder,
+					paths: folder.paths.filter((path) => !deleted.includes(path)),
+				})),
+			);
+			setSelected((current) => current.filter((path) => !deleted.includes(path)));
+			if (selected.every((path) => deleted.includes(path))) setSelecting(false);
+		});
+
 	const openEntry = (entry: ProjectLibraryEntry) =>
 		entry.rawSource
 			? setRawPreview(entry)
@@ -116,8 +138,7 @@ export function useDashboardModel({
 		setSelecting,
 		selected,
 		setSelected,
-		confirmDelete,
-		setConfirmDelete,
+		deleteEntries,
 		toggleSelected,
 		assignFolder,
 		query,

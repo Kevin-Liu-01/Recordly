@@ -45,7 +45,6 @@ export function useProjectOpenActions({
 	setCurrentTime,
 	setDuration,
 	applyLoadedProject,
-	openUnsavedChangesDialog,
 	saveProject,
 	refreshProjectLibrary,
 	resetSourceScopedEditorState,
@@ -54,14 +53,11 @@ export function useProjectOpenActions({
 	handleSaveProjectAs,
 }: UseProjectOpenActionsInput) {
 	const confirmReplaceSourceWithUnsavedChanges = useCallback(
-		async (actionLabel: string) => {
+		async (_actionLabel: string) => {
 			if (!hasUnsavedChanges) return true;
-			const decision = await openUnsavedChangesDialog(actionLabel);
-			if (decision === "discard") return true;
-			if (decision === "save") return saveProject(false);
-			return false;
+			return saveProject(false, { remountPreviewAfterSave: false });
 		},
-		[hasUnsavedChanges, openUnsavedChangesDialog, saveProject],
+		[hasUnsavedChanges, saveProject],
 	);
 
 	const handleOpenProjectFromLibrary = useCallback(
@@ -180,14 +176,22 @@ export function useProjectOpenActions({
 		}
 		videoPlaybackRef.current?.pause();
 		setIsPlaying(false);
-		if (project.videoPath && !project.error) {
-			await saveProject(false, { remountPreviewAfterSave: false });
-		}
+		project.setProjectLibraryLoading(true);
 		project.setProjectBrowserOpen(true);
-		void refreshProjectLibrary();
+		try {
+			if (project.videoPath && !project.error) {
+				await saveProject(false, {
+					remountPreviewAfterSave: false,
+					refreshLibraryAfterSave: false,
+				});
+			}
+		} finally {
+			await refreshProjectLibrary();
+		}
 	}, [
 		project.projectBrowserOpen,
 		project.setProjectBrowserOpen,
+		project.setProjectLibraryLoading,
 		refreshProjectLibrary,
 		videoPlaybackRef,
 		setIsPlaying,

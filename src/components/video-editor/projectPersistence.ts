@@ -1,16 +1,5 @@
 import { getLocalMediaServerPath } from "@/lib/localMediaUrl";
 import type { SourceAudioTrackSettings } from "@/components/video-editor/audio/audioTypes";
-import type {
-	ExportBackendPreference,
-	ExportEncodingMode,
-	ExportFormat,
-	ExportMp4FrameRate,
-	ExportPipelineModel,
-	ExportQuality,
-	GifFrameRate,
-	GifSizePreset,
-} from "@/lib/exporter";
-import { isValidMp4FrameRate } from "@/lib/exporter/types";
 import { DEFAULT_WALLPAPER_PATH } from "@/lib/wallpapers";
 import { ASPECT_RATIOS, type AspectRatio, isCustomAspectRatio } from "@/utils/aspectRatioUtils";
 import { closeClipGaps, rippleRegionAnchors, rippleRegions } from "./clipSequence";
@@ -146,15 +135,6 @@ export interface ProjectEditorState {
 	aspectRatio: AspectRatio;
 	sourceAudioTrackSettingsByClip?: Record<string, SourceAudioTrackSettings>;
 	defaultSourceAudioTrackSettings?: SourceAudioTrackSettings;
-	exportEncodingMode: ExportEncodingMode;
-	exportBackendPreference: ExportBackendPreference;
-	exportPipelineModel: ExportPipelineModel;
-	exportQuality: ExportQuality;
-	mp4FrameRate: ExportMp4FrameRate;
-	exportFormat: ExportFormat;
-	gifFrameRate: GifFrameRate;
-	gifLoop: boolean;
-	gifSizePreset: GifSizePreset;
 }
 
 export interface EditorProjectData {
@@ -182,32 +162,6 @@ export function stripPersistedDevMotionBlurSettings<T extends PersistedDevMotion
 	const { zoomMotionBlurTuning: _zoomMotionBlurTuning, ...persistedEditor } = editor;
 
 	return persistedEditor;
-}
-
-export function normalizeExportEncodingMode(value: unknown): ExportEncodingMode {
-	if (value === "fast" || value === "balanced" || value === "quality") {
-		return value;
-	}
-
-	return "balanced";
-}
-
-export function normalizeExportBackendPreference(value: unknown): ExportBackendPreference {
-	if (value === "auto" || value === "webcodecs" || value === "breeze") {
-		return value;
-	}
-
-	return "auto";
-}
-
-export function normalizeExportPipelineModel(_value: unknown): ExportPipelineModel {
-	// Legacy remains available to internal smoke/export routing, but persisted
-	// user selections migrate to the only pipeline exposed by the editor UI.
-	return "modern";
-}
-
-export function normalizeExportMp4FrameRate(value: unknown): ExportMp4FrameRate {
-	return typeof value === "number" && isValidMp4FrameRate(value) ? value : 30;
 }
 
 function normalizeZoomTransitionEasing(
@@ -1094,32 +1048,6 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 				isCustomAspectRatio(editor.aspectRatio))
 				? (editor.aspectRatio as AspectRatio)
 				: "16:9",
-		exportEncodingMode: normalizeExportEncodingMode(editor.exportEncodingMode),
-		exportBackendPreference: normalizeExportBackendPreference(editor.exportBackendPreference),
-		exportPipelineModel: normalizeExportPipelineModel(editor.exportPipelineModel),
-		exportQuality:
-			editor.exportQuality === "medium" ||
-			editor.exportQuality === "good" ||
-			editor.exportQuality === "high" ||
-			editor.exportQuality === "source"
-				? editor.exportQuality
-				: "source",
-		mp4FrameRate: normalizeExportMp4FrameRate(editor.mp4FrameRate),
-		exportFormat: editor.exportFormat === "gif" ? "gif" : "mp4",
-		gifFrameRate:
-			editor.gifFrameRate === 15 ||
-			editor.gifFrameRate === 20 ||
-			editor.gifFrameRate === 25 ||
-			editor.gifFrameRate === 30
-				? editor.gifFrameRate
-				: 15,
-		gifLoop: typeof editor.gifLoop === "boolean" ? editor.gifLoop : true,
-		gifSizePreset:
-			editor.gifSizePreset === "medium" ||
-			editor.gifSizePreset === "large" ||
-			editor.gifSizePreset === "original"
-				? editor.gifSizePreset
-				: "medium",
 	};
 }
 
@@ -1132,6 +1060,29 @@ export function createProjectData(
 		version: PROJECT_VERSION,
 		...(typeof projectId === "string" && projectId.trim().length > 0 ? { projectId } : {}),
 		videoPath,
-		editor,
+		editor: stripProjectUserPreferences(editor),
 	};
+}
+
+// Older project files may contain app preferences. Never write or compare them as edits.
+export function stripProjectUserPreferences<T extends object>(editor: T): T {
+	const result = { ...editor };
+	for (const key of [
+		"exportEncodingMode",
+		"exportBackendPreference",
+		"exportPipelineModel",
+		"exportQuality",
+		"mp4FrameRate",
+		"exportFormat",
+		"gifFrameRate",
+		"gifLoop",
+		"gifSizePreset",
+		"publishDestination",
+		"includeCaptionSidecar",
+		"whisperExecutablePath",
+		"whisperModelPath",
+	]) {
+		delete (result as Record<string, unknown>)[key];
+	}
+	return result;
 }

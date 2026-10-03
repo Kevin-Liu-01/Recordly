@@ -98,3 +98,29 @@ export function parseCloudShareTicket(value: unknown): CloudShareTicket {
 		finalizeUrl,
 	};
 }
+
+/** Validates untrusted library JSON before presenting recording metadata to the renderer. */
+export function parseCloudRecordingList(data: unknown, endpoint: string) {
+	if (!data || typeof data !== "object" || !("videos" in data) || !Array.isArray(data.videos))
+		throw new Error("Invalid recordings response.");
+	return data.videos.slice(0, 100).map((raw: unknown) => {
+		if (!raw || typeof raw !== "object" || Array.isArray(raw))
+			throw new Error("Invalid recording response.");
+		const video = raw as Record<string, unknown>;
+		if (
+			typeof video.share_code !== "string" ||
+			!/^[a-z0-9]{1,128}$/.test(video.share_code) ||
+			typeof video.title !== "string"
+		)
+			throw new Error("Invalid recording response.");
+		const size = Number(video.file_size);
+		return {
+			code: video.share_code,
+			title: video.title,
+			size: Number.isFinite(size) && size >= 0 ? size : 0,
+			createdAt: typeof video.created_at === "string" ? video.created_at : undefined,
+			ready: video.upload_completed === 1,
+			url: new URL(`/s/${video.share_code}`, endpoint).href,
+		};
+	});
+}

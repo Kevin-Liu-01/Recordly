@@ -4,7 +4,6 @@ import type { useI18n } from "@/contexts/I18nContext";
 import type { AspectRatio } from "@/utils/aspectRatioUtils";
 import { useAutoCaptionController } from "../captions/useAutoCaptionController";
 import { loadEditorPreferences } from "../editorPreferences";
-import type { useExportSettings } from "../export/useExportSettings";
 import { useEditorHistory } from "../hooks/useEditorHistory";
 import { useEditorPreferencesPersistence } from "../presets/useEditorPreferencesPersistence";
 import { hasUnsavedProjectChanges } from "../projectDirtyState";
@@ -25,7 +24,6 @@ type Input = {
 	project: ReturnType<typeof useProjectState>;
 	appearance: ReturnType<typeof useAppearanceState>;
 	timeline: ReturnType<typeof useTimelineState>;
-	exportSettings: ReturnType<typeof useExportSettings>;
 	initialPreferences: ReturnType<typeof loadEditorPreferences>;
 	smokeConfig: ReturnType<typeof getSmokeExportConfig>;
 	devConfig: ReturnType<typeof getDevOpenRecordingConfig>;
@@ -85,7 +83,6 @@ export function useEditorProjectController(input: Input) {
 		project: input.project,
 		appearance: input.appearance,
 		timeline: input.timeline,
-		exportSettings: input.exportSettings,
 		aspectRatio: input.aspectRatio,
 		projectNameInputRef: input.projectNameInputRef,
 		projectSaveDialogInputRef: input.projectSaveDialogInputRef,
@@ -103,7 +100,6 @@ export function useEditorProjectController(input: Input) {
 		project: input.project,
 		appearance: input.appearance,
 		timeline: input.timeline,
-		exportSettings: input.exportSettings,
 		aspectRatio: input.aspectRatio,
 		setAspectRatio: input.setAspectRatio,
 		currentSourcePath: snapshot.currentSourcePath,
@@ -154,7 +150,6 @@ export function useEditorProjectController(input: Input) {
 	});
 	useEditorPreferencesPersistence({
 		appearance: input.appearance,
-		exportSettings: input.exportSettings,
 		aspectRatio: input.aspectRatio,
 		whisperExecutablePath: input.whisperExecutablePath,
 		whisperModelPath: input.whisperModelPath,

@@ -563,7 +563,8 @@ export function useExportRunner(input: ExportRunnerInput) {
 				} else if (!exportWasCancelled()) {
 					setIsExporting(false);
 					exporterRef.current = null;
-					setShowExportDropdown(keepExportDialogOpen);
+					if (options?.destination !== "share")
+						setShowExportDropdown(keepExportDialogOpen);
 					remountPreview();
 				}
 			}

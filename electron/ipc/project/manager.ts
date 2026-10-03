@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
+import { createProjectFirstFrameThumbnail } from "./firstFrameThumbnail";
 import { buildMediaUrl, getMediaServerBaseUrl } from "../../mediaServer";
 import type { ProjectPreviewData } from "../../../src/types/projectPreview";
 import { hasFreshProjectThumbnail } from "./thumbnailFreshness";
-import { existsSync, constants as fsConstants, realpathSync } from "node:fs";
+import { type Stats, existsSync, constants as fsConstants, realpathSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { app } from "electron";
@@ -322,9 +324,58 @@ export async function rememberRecentProject(projectPath: string) {
 	await saveRecentProjectPaths([projectPath, ...existingPaths]);
 }
 
+export type ProjectThumbnailReady = { path: string; thumbnailPath: string; updatedAt: number };
+const thumbnailJobs = new Map<string, Promise<ProjectThumbnailReady | null>>();
+
+function sameProjectRevision(left: Stats, right: Stats) {
+	return (
+		left.mtimeMs === right.mtimeMs &&
+		left.ctimeMs === right.ctimeMs &&
+		left.size === right.size &&
+		left.ino === right.ino &&
+		left.dev === right.dev
+	);
+}
+
+export function refreshProjectThumbnail(projectPath: string, revision: Stats) {
+	const pending = thumbnailJobs.get(projectPath);
+	if (pending) return pending;
+	const task = (async (): Promise<ProjectThumbnailReady | null> => {
+		const thumbnailPath = getProjectThumbnailPath(projectPath);
+		let temporary: string | undefined;
+		try {
+			if (!sameProjectRevision(revision, await fs.stat(projectPath))) return null;
+			const project = parseJsonWithByteOrderMark(await fs.readFile(projectPath, "utf-8"));
+			if (!isLoadableProjectData(project)) return null;
+			const media = await resolveProjectMediaSources(project);
+			if (!media.success) return null;
+			const thumbnail = await createProjectFirstFrameThumbnail(media.videoPath);
+			if (!sameProjectRevision(revision, await fs.stat(projectPath))) return null;
+			if (!(await hasFreshProjectThumbnail(thumbnailPath, revision.mtimeMs))) {
+				temporary = `${thumbnailPath}.${randomUUID()}.tmp`;
+				await fs.writeFile(temporary, thumbnail, { flag: "wx" });
+				// Stamp the source revision, rather than generation time, so a later edit invalidates it.
+				await fs.utimes(temporary, new Date(), Math.ceil(revision.mtimeMs) / 1000);
+				if (!sameProjectRevision(revision, await fs.stat(projectPath))) return null;
+				// Rename replaces a sidecar symlink itself; it never writes through its target.
+				await fs.rename(temporary, thumbnailPath);
+			}
+			return { path: projectPath, thumbnailPath, updatedAt: revision.mtimeMs };
+		} catch {
+			// Offline, corrupt or deleted media must not hold up the library.
+			return null;
+		} finally {
+			if (temporary) await fs.rm(temporary, { force: true }).catch(() => undefined);
+		}
+	})().finally(() => thumbnailJobs.delete(projectPath));
+	thumbnailJobs.set(projectPath, task);
+	return task;
+}
+
 export async function buildProjectLibraryEntry(
 	projectPath: string,
 	projectsDir: string,
+	onThumbnailReady?: (ready: ProjectThumbnailReady) => void,
 ): Promise<ProjectLibraryEntry | null> {
 	try {
 		const normalizedPath = normalizePath(projectPath);
@@ -339,6 +390,13 @@ export async function buildProjectLibraryEntry(
 
 		const thumbnailPath = getProjectThumbnailPath(normalizedPath);
 		const thumbnailExists = await hasFreshProjectThumbnail(thumbnailPath, stats.mtimeMs);
+		if (!thumbnailExists) {
+			void refreshProjectThumbnail(normalizedPath, stats)
+				.then((ready) => {
+					if (ready) onThumbnailReady?.(ready);
+				})
+				.catch(() => undefined);
+		}
 
 		return {
 			path: normalizedPath,
@@ -364,7 +422,9 @@ export async function buildProjectLibraryEntry(
 	}
 }
 
-export async function listProjectLibraryEntries() {
+export async function listProjectLibraryEntries(
+	onThumbnailReady?: (ready: ProjectThumbnailReady) => void,
+) {
 	const projectsDir = await getProjectsDir();
 	const projectPaths: string[] = [];
 
@@ -389,7 +449,7 @@ export async function listProjectLibraryEntries() {
 	const entries = (
 		await Promise.all(
 			candidatePaths.map((candidatePath) =>
-				buildProjectLibraryEntry(candidatePath, projectsDir),
+				buildProjectLibraryEntry(candidatePath, projectsDir, onThumbnailReady),
 			),
 		)
 	)

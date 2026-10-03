@@ -748,9 +748,12 @@ export function registerProjectHandlers() {
 		}
 	});
 
-	ipcMain.handle("list-project-files", async () => {
+	ipcMain.handle("list-project-files", async (event) => {
 		try {
-			const library = await listProjectLibraryEntries();
+			const library = await listProjectLibraryEntries((ready) => {
+				if (!event.sender.isDestroyed())
+					event.sender.send("project-library-thumbnail-ready", ready);
+			});
 			return {
 				success: true,
 				projectsDir: library.projectsDir,

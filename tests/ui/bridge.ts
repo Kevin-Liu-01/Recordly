@@ -11,7 +11,7 @@ export async function installDesktopBridge(page: Page, videoFixture = "preview.m
 		};
 		Object.assign(window, {
 			electronAPI: {
-				getAppSetting: () => null,
+				getAppSetting: (key: string) => key === "recordly.onboarding.v1.seen" ? true : null,
 				finishRecordingStartup: async () => undefined,
 				showProjectDashboard: async () => {
 					document.documentElement.dataset.dashboardOpened = "true";
@@ -93,6 +93,7 @@ export async function installDesktopBridge(page: Page, videoFixture = "preview.m
 				setCurrentRecordingSession: success,
 				setHasUnsavedChanges: success,
 				onAuthCallbackUrl: subscribe,
+				onProjectThumbnailReady: subscribe,
 				getPendingAuthCallbackUrl: async () => null,
 				ackAuthCallbackUrl: success,
 				onMenuSaveProject: subscribe,

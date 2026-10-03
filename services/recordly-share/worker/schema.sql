@@ -1,5 +1,5 @@
--- Recordly Share — consolidated D1 schema (based on Voom, through migration 0007).
--- Keep in sync with SCHEMA_STATEMENTS in src/index.js (the runtime source of
+-- Recordly Share — consolidated D1 schema (based on Voom, through migration 0009).
+-- Keep in sync with SCHEMA_STATEMENTS in src/schema.js (the runtime source of
 -- truth for fresh databases). Statements are idempotent so this file is safe
 -- to re-apply to an existing database; the numbered files in migrations/
 -- exist for upgrading databases created from an older schema.sql.
@@ -23,8 +23,10 @@ CREATE TABLE IF NOT EXISTS videos (
     last_notified_view_count INTEGER NOT NULL DEFAULT 0,
     is_meeting INTEGER NOT NULL DEFAULT 0,
     summary TEXT,
-    password_salt TEXT
+    password_salt TEXT,
+    owner_id TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_videos_owner ON videos(owner_id);
 CREATE INDEX IF NOT EXISTS idx_videos_share_code ON videos(share_code);
 CREATE INDEX IF NOT EXISTS idx_videos_expires_at ON videos(expires_at);
 
@@ -93,3 +95,6 @@ CREATE TABLE IF NOT EXISTS comment_sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_comment_sessions_user ON comment_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_comment_sessions_expiry ON comment_sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS recording_uploads (share_code TEXT PRIMARY KEY REFERENCES videos(share_code) ON DELETE CASCADE, upload_id TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS recording_locks (share_code TEXT PRIMARY KEY, token TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')));

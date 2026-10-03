@@ -1,12 +1,10 @@
 import { useEffect } from "react";
 import type { AspectRatio } from "@/utils/aspectRatioUtils";
 import { saveEditorPreferences } from "../editorPreferences";
-import type { useExportSettings } from "../export/useExportSettings";
 import type { useAppearanceState } from "../state/useAppearanceState";
 
 type Input = {
 	appearance: ReturnType<typeof useAppearanceState>;
-	exportSettings: ReturnType<typeof useExportSettings>;
 	aspectRatio: AspectRatio;
 	whisperExecutablePath: string | null;
 	whisperModelPath: string | null;
@@ -14,7 +12,6 @@ type Input = {
 
 export function useEditorPreferencesPersistence({
 	appearance,
-	exportSettings,
 	aspectRatio,
 	whisperExecutablePath,
 	whisperModelPath,
@@ -60,15 +57,6 @@ export function useEditorPreferencesPersistence({
 			padding: appearance.padding,
 			webcam: appearance.webcam,
 			aspectRatio,
-			exportEncodingMode: exportSettings.exportEncodingMode,
-			exportBackendPreference: exportSettings.exportBackendPreference,
-			exportPipelineModel: exportSettings.exportPipelineModel,
-			exportQuality: exportSettings.exportQuality,
-			mp4FrameRate: exportSettings.mp4FrameRate,
-			exportFormat: exportSettings.exportFormat,
-			gifFrameRate: exportSettings.gifFrameRate,
-			gifLoop: exportSettings.gifLoop,
-			gifSizePreset: exportSettings.gifSizePreset,
 			whisperExecutablePath,
 			whisperModelPath,
 		});
@@ -112,15 +100,6 @@ export function useEditorPreferencesPersistence({
 		appearance.padding,
 		appearance.webcam,
 		aspectRatio,
-		exportSettings.exportEncodingMode,
-		exportSettings.exportBackendPreference,
-		exportSettings.exportPipelineModel,
-		exportSettings.exportQuality,
-		exportSettings.mp4FrameRate,
-		exportSettings.exportFormat,
-		exportSettings.gifFrameRate,
-		exportSettings.gifLoop,
-		exportSettings.gifSizePreset,
 		whisperExecutablePath,
 		whisperModelPath,
 	]);

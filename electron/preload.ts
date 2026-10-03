@@ -874,6 +874,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	getProjectsDirectory: () => {
 		return ipcRenderer.invoke("get-projects-directory");
 	},
+	onProjectThumbnailReady: (
+		callback: (ready: { path: string; thumbnailPath: string; updatedAt: number }) => void,
+	) => {
+		const listener = (
+			_event: Electron.IpcRendererEvent,
+			ready: { path: string; thumbnailPath: string; updatedAt: number },
+		) => callback(ready);
+		ipcRenderer.on("project-library-thumbnail-ready", listener);
+		return () => ipcRenderer.removeListener("project-library-thumbnail-ready", listener);
+	},
 	listProjectFiles: () => {
 		return ipcRenderer.invoke("list-project-files");
 	},
@@ -1024,6 +1034,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		notes?: string;
 		uploadId?: string;
 	}) => ipcRenderer.invoke("cloud-share-upload", input),
+	cloudShareManage: (input: {
+		endpoint: string;
+		token: string;
+		action: "list" | "delete";
+		shareCode?: string;
+	}) => ipcRenderer.invoke("cloud-share-manage", input),
 	cloudShareCancel: (uploadId: string) => ipcRenderer.invoke("cloud-share-cancel", uploadId),
 	onCloudShareProgress: (
 		callback: (progress: {
@@ -1071,14 +1087,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		ipcRenderer.send("set-has-unsaved-changes", hasChanges);
 	},
 	onRequestSaveBeforeClose: (callback: () => Promise<boolean>) => {
-		const listener = async () => {
+		const listener = async (_event: Electron.IpcRendererEvent, requestId: unknown) => {
 			let saved = false;
 			try {
 				saved = await callback();
 			} catch {
 				saved = false;
 			}
-			ipcRenderer.send("save-before-close-done", saved);
+			ipcRenderer.send("save-before-close-done", saved, requestId);
 		};
 		ipcRenderer.on("request-save-before-close", listener);
 		return () => ipcRenderer.removeListener("request-save-before-close", listener);

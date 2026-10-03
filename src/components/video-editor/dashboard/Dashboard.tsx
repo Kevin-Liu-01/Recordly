@@ -1,6 +1,5 @@
 import { DashboardAnnouncements } from "./DashboardAnnouncements";
 import { Card, Modal } from "@heroui/react";
-import { DashboardDialogs } from "./DashboardDialogs";
 import { DashboardFilters } from "./DashboardFilters";
 import { DashboardGrid } from "./DashboardGrid";
 import { DashboardSidebar } from "./DashboardSidebar";
@@ -34,7 +33,6 @@ export function Dashboard(props: DashboardProps) {
 					</Modal.Container>
 				</Modal.Backdrop>
 			</Modal>
-			<DashboardDialogs {...view} />
 		</>
 	);
 }

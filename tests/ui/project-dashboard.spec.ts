@@ -4,12 +4,50 @@ import { hasFreshProjectThumbnail } from "../../electron/ipc/project/thumbnailFr
 import { expect, test } from "@playwright/test";
 import { installDesktopBridge, installDesktopBridgeOverrides } from "./bridge";
 
+test("Home opens with a wireframe while saving and returns to the main library", async ({
+	page,
+}) => {
+	await installDesktopBridge(page);
+	await page.goto("/?windowType=editor");
+	await expect(page.locator("html")).toHaveAttribute("data-project-creates", "1");
+	await page.evaluate(() => {
+		const save = window.electronAPI.saveProjectFile;
+		window.electronAPI.saveProjectFile = async (...args) => {
+			await new Promise<void>((resolve) => {
+				window.addEventListener("test-release-save", () => resolve(), { once: true });
+				document.documentElement.dataset.savePending = "true";
+			});
+			return save(...args);
+		};
+	});
+	await page.getByRole("button", { name: "Home", exact: true }).click();
+	const home = page.getByRole("dialog", { name: "Projects dashboard" });
+	await expect(home).toBeVisible();
+	await expect(home.getByLabel("Loading projects")).toBeVisible();
+	await expect(page.locator("html")).toHaveAttribute("data-save-pending", "true");
+	await page.screenshot({ path: "test-results/home-loading.png", animations: "disabled" });
+	await page.evaluate(() => window.dispatchEvent(new Event("test-release-save")));
+	await expect(home.getByLabel("Loading projects")).toHaveCount(0);
+	await home.getByRole("button", { name: "Settings", exact: true }).click();
+	await expect(home.getByRole("region", { name: "Dashboard settings" })).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(home).not.toBeVisible();
+	await page.evaluate(() => {
+		delete document.documentElement.dataset.savePending;
+	});
+	await page.getByRole("button", { name: "Home", exact: true }).click();
+	await expect(home.getByRole("textbox", { name: "Search projects" })).toBeVisible();
+	await expect(page.locator("html")).toHaveAttribute("data-save-pending", "true");
+	await page.evaluate(() => window.dispatchEvent(new Event("test-release-save")));
+	await expect(home.getByLabel("Loading projects")).toHaveCount(0);
+});
+
 test("home dashboard searches, sorts, opens projects and returns to the editor", async ({
 	page,
 }) => {
 	await installDesktopBridge(page);
 	await page.addInitScript(() => {
-		const entries = [
+		let entries = [
 			{
 				path: "/projects/launch.recordly",
 				name: "Launch video",
@@ -40,6 +78,10 @@ test("home dashboard searches, sorts, opens projects and returns to the editor",
 			projects: [],
 			entries,
 		});
+		window.electronAPI.trashProjectFiles = async (paths) => {
+			entries = entries.filter((entry) => !paths.includes(entry.path));
+			return { success: true, deleted: paths, errors: [] };
+		};
 		window.electronAPI.openProjectFileAtPath = async (path) => {
 			document.documentElement.dataset.openedProject = path;
 			return { success: false, canceled: true };
@@ -104,18 +146,17 @@ test("home dashboard searches, sorts, opens projects and returns to the editor",
 	await home.getByRole("button", { name: "Settings", exact: true }).click();
 	await expect(home.getByRole("region", { name: "Dashboard settings" })).toBeVisible();
 	await home.getByRole("button", { name: "Home", exact: true }).click();
-	await home.getByRole("complementary", { name: "Library navigation" }).getByRole("button", { name: "Record new", exact: true }).click();
+	await home
+		.getByRole("complementary", { name: "Library navigation" })
+		.getByRole("button", { name: "Record new", exact: true })
+		.click();
 	await expect(page.locator("html")).toHaveAttribute("data-hud-opened", "true");
 	await home.getByRole("button", { name: "Select projects to delete" }).click();
 	await cards.first().click();
 	await expect(cards.first()).toHaveAttribute("aria-pressed", "true");
 	await home.getByRole("button", { name: "Delete", exact: true }).click();
-	await expect(page.getByRole("dialog", { name: "Delete 1 project?" })).toBeVisible();
-	await page
-		.getByRole("dialog", { name: "Delete 1 project?" })
-		.getByRole("button", { name: "Cancel", exact: true })
-		.click();
-	await home.getByRole("button", { name: "Cancel", exact: true }).click();
+	await expect(page.getByRole("dialog", { name: "Delete 1 project?" })).not.toBeVisible();
+	await expect(cards).toHaveCount(2);
 	await page.screenshot({ path: "test-results/project-dashboard.png", animations: "disabled" });
 	await page.evaluate(() => document.documentElement.classList.add("dark"));
 	await page.screenshot({
@@ -241,10 +282,7 @@ test("deletion refreshes the grid and keeps unselected projects", async ({ page 
 		.filter({ hasNot: page.locator("img") })
 		.first()
 		.click();
-	await page
-		.getByRole("dialog", { name: "Delete 1 project?" })
-		.getByRole("button", { name: "Move to Trash" })
-		.click();
+	await expect(page.getByRole("dialog", { name: "Delete 1 project?" })).not.toBeVisible();
 	await expect(
 		home.getByRole("list").getByRole("button", { name: "Delete", exact: true }),
 	).toHaveCount(0);
@@ -294,6 +332,14 @@ test("cards rename inline, preserve folder chips and use existing share links", 
 	);
 	await home.getByRole("button", { name: "Options for Demo" }).click();
 	await page.getByRole("menuitem", { name: "Rename", exact: true }).click();
+	const renameInput = home.getByRole("textbox", { name: "Project name" });
+	await expect(renameInput).toBeFocused();
+	expect(
+		await renameInput.evaluate((input: HTMLInputElement) => [
+			input.selectionStart,
+			input.selectionEnd,
+		]),
+	).toEqual([0, 4]);
 	await home.getByRole("textbox", { name: "Project name" }).fill("Renamed");
 	await page.keyboard.press("Enter");
 	await expect(home.getByRole("button", { name: "Renamed", exact: true })).toBeVisible();
@@ -511,7 +557,6 @@ test("Solar navigation selection, circular initials, and Raw sources are consist
 	await home.getByRole("button", { name: "Select raw files to remove" }).click();
 	await home.getByRole("button", { name: "Original take", exact: true }).click();
 	await home.getByRole("button", { name: "Remove", exact: true }).click();
-	await page.getByRole("button", { name: "Remove from library", exact: true }).click();
 	await expect(home.getByRole("button", { name: "Original take", exact: true })).toHaveCount(0);
 	await home.getByRole("button", { name: "Raw", exact: true }).click();
 });
@@ -708,9 +753,7 @@ test("sidebar cards, separate Import, and shortcut settings use the dashboard fl
 	const settings = sidebar.getByRole("button", { name: "Settings", exact: true });
 	const importButton = home.getByRole("button", { name: "Import", exact: true });
 	const all = home.getByRole("button", { name: "All", exact: true });
-	expect(
-		(await importButton.boundingBox())!.y - (await all.boundingBox())!.y,
-	).toBeLessThan(0);
+	expect((await importButton.boundingBox())!.y - (await all.boundingBox())!.y).toBeLessThan(0);
 	expect(await all.evaluate((element) => element.parentElement!.textContent)).not.toContain(
 		"Import",
 	);

@@ -1,3 +1,4 @@
+import { OnboardingController } from "@/components/auth/OnboardingController";
 import { AccountProfileContext } from "@/components/ui/account-avatar";
 import { DashboardSettingsContext } from "../dashboard/DashboardSettings";
 import { RecordlySignInDialog, type SignInReason } from "@/components/auth/RecordlySignInDialog";
@@ -55,6 +56,8 @@ type Props = {
 };
 
 export function EditorShell(props: Props) {
+	const [onboardingRequest, setOnboardingRequest] = useState(0);
+	const showOnboarding = useCallback(() => setOnboardingRequest((value) => value + 1), []);
 	const [signInOpen, setSignInOpen] = useState(false);
 	const [signInReason, setSignInReason] = useState<SignInReason>("account");
 	const [shareRequestNonce, setShareRequestNonce] = useState(0);
@@ -137,13 +140,23 @@ export function EditorShell(props: Props) {
 		() => (
 			<SettingsPanel
 				{...settingsPanelProps}
+				onShowOnboarding={showOnboarding}
 				activeEffectSection="settings"
 				selectedAnnotationId={null}
 				selectedClipId={null}
 				advanced
 			/>
 		),
-		[settingsPanelProps],
+		[settingsPanelProps, showOnboarding],
+	);
+	const onboarding = (
+		<OnboardingController
+			requestNonce={onboardingRequest}
+			ready={!project.loading && !auth.loading}
+			user={auth.user}
+			configured={auth.configured}
+			callbackError={auth.callbackError}
+		/>
 	);
 	const editorDialogs = (
 		<AccountProfileContext.Provider value={auth.user}>
@@ -165,6 +178,7 @@ export function EditorShell(props: Props) {
 					projectBrowserOpen={project.projectBrowserOpen}
 					setProjectBrowserOpen={project.setProjectBrowserOpen}
 					projectLibraryEntries={project.projectLibraryEntries}
+					projectLibraryLoading={project.projectLibraryLoading}
 					projectError={project.error}
 					onDashboardSignIn={() => requestSignIn("account")}
 					onDeleteProjects={openActions.handleDeleteProjects}
@@ -180,6 +194,7 @@ export function EditorShell(props: Props) {
 						else setShareRequestNonce((value) => value + 1);
 					}}
 					accountLabel={auth.user?.email}
+					authToken={auth.accessToken}
 					handleImportMediaOrProject={openActions.handleImportMediaOrProject}
 					handleOpenProjectFromLibrary={openActions.handleOpenProjectFromLibrary}
 					nativeCaptureUnavailableModalOpen={ui.nativeCaptureUnavailableModalOpen}
@@ -202,6 +217,7 @@ export function EditorShell(props: Props) {
 					onAuthenticated={handleAuthenticated}
 				/>
 				{editorDialogs}
+				{onboarding}
 				<Toaster className="pointer-events-auto" />
 			</>
 		);
@@ -232,6 +248,7 @@ export function EditorShell(props: Props) {
 					onAuthenticated={handleAuthenticated}
 				/>
 				{editorDialogs}
+				{onboarding}
 				<Toaster className="pointer-events-auto" />
 			</div>
 		);
@@ -273,6 +290,7 @@ export function EditorShell(props: Props) {
 				onRequestShareSignIn={() => requestSignIn("share")}
 				shareRequestNonce={shareRequestNonce}
 				authToken={auth.accessToken}
+				accountId={auth.user?.id}
 				revealExportedFile={dialogActions.revealExportedFile}
 				exportMessage={exportMessage}
 			/>
@@ -341,7 +359,10 @@ export function EditorShell(props: Props) {
 							timeline.setSelectedCaptionId(null);
 							ui.setActiveEffectSection(section);
 						}}
-						settingsPanelProps={settingsPanelProps}
+						settingsPanelProps={{
+							...settingsPanelProps,
+							onShowOnboarding: showOnboarding,
+						}}
 					/>
 					<EditorPreviewPanel
 						t={t}
@@ -434,6 +455,7 @@ export function EditorShell(props: Props) {
 				onAuthenticated={handleAuthenticated}
 			/>
 			{editorDialogs}
+			{onboarding}
 			<CropEditorDialog
 				open={ui.showCropModal}
 				t={t}

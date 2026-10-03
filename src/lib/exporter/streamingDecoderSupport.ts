@@ -92,6 +92,22 @@ export function buildVideoDecodeFailure(error: unknown, context: VideoDecodeFail
 	return failure;
 }
 
+/** Preserve both decoder attempts without claiming that a damaged source is proven. */
+export function buildVideoDecodeRecoveryFailure(initial: unknown, software: unknown): Error {
+	const describe = (value: unknown) => (value instanceof Error ? value.message : String(value));
+	const failure = new Error(
+		[
+			"[VIDEO_DECODE_RECOVERY_FAILED] Default decoding and the software retry both failed.",
+			`Initial decoder failure: ${describe(initial)}`,
+			`Software decoder failure: ${describe(software)}`,
+			"Chunk positions are the last submitted input, not necessarily the exact failing frame.",
+			"Source corruption is not confirmed. Test this file with an independent decoder; if other files also fail, investigate the system decoder/driver.",
+		].join("\n"),
+	);
+	(failure as Error & { cause?: unknown }).cause = { initial, software };
+	return failure;
+}
+
 /** Keeps the original decoder failure when cleanup triggers secondary errors. */
 export function preserveFirstVideoDecodeFailure(
 	existingError: Error | null,

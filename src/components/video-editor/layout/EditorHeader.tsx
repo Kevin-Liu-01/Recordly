@@ -58,6 +58,7 @@ type Props = {
 	onRequestShareSignIn: () => void;
 	shareRequestNonce: number;
 	authToken?: string;
+	accountId?: string;
 };
 
 export function EditorHeader(props: Props) {
@@ -68,7 +69,6 @@ export function EditorHeader(props: Props) {
 		projectBrowserTriggerRef,
 		projectNameInputRef,
 		projectDisplayName,
-		hasUnsavedChanges,
 		canUndo,
 		canRedo,
 		handleOpenProjectBrowser,
@@ -139,9 +139,6 @@ export function EditorHeader(props: Props) {
 							onSubmit={(event) => void handleProjectNameSubmit(event)}
 							className="flex w-full min-w-0 items-center gap-1.5 px-1"
 						>
-							{hasUnsavedChanges ? (
-								<span className="size-1.5 shrink-0 rounded-full bg-accent" />
-							) : null}
 							<input
 								ref={projectNameInputRef}
 								type="text"
@@ -172,13 +169,10 @@ export function EditorHeader(props: Props) {
 							variant="ghost"
 							type="button"
 							onClick={() => setIsEditingProjectName(true)}
-							className="inline-flex h-9 min-w-0 max-w-full items-center gap-1.5 px-1"
+							className="inline-flex h-9 min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2"
 							title={t("editor.project.renameTitle", "Rename project")}
 							aria-label={t("editor.project.renameTitle", "Rename project")}
 						>
-							{hasUnsavedChanges ? (
-								<span className="size-1.5 shrink-0 rounded-full bg-accent" />
-							) : null}
 							<span className="truncate text-sm font-semibold tracking-tight text-foreground/90">
 								{projectDisplayName}
 							</span>
@@ -252,6 +246,7 @@ export function EditorHeader(props: Props) {
 					onRequestShareSignIn={props.onRequestShareSignIn}
 					shareRequestNonce={props.shareRequestNonce}
 					authToken={props.authToken}
+					accountId={props.accountId}
 				/>
 			</div>
 		</header>

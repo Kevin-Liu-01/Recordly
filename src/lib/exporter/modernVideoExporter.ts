@@ -1044,6 +1044,11 @@ export class ModernVideoExporter {
 		const isVideoDecodeFailure = /VideoDecoder failure|VIDEO_DECODE|VIDEO_CODEC/i.test(message);
 
 		if (isVideoDecodeFailure) {
+			if (message.includes("VIDEO_DECODE_RECOVERY_FAILED")) {
+				guidance.add(
+					"The default decoder and software retry both failed. Compare their source times below; failure near the same point suggests a source/codec issue but does not prove corruption.",
+				);
+			}
 			guidance.add(
 				"The input video decoder failed before Recordly could finish rendering the source frames.",
 			);
@@ -1051,7 +1056,7 @@ export class ModernVideoExporter {
 				"If only this recording fails, remux or convert it to a standard H.264 MP4; the source may contain a damaged or unsupported frame.",
 			);
 			guidance.add(
-				"If every recording fails, update the GPU/media driver and retry at 30 FPS to reduce decoder pressure.",
+				"If every recording fails, update the GPU/media driver. Lowering export FPS does not change the input stream that must be decoded.",
 			);
 		} else {
 			guidance.add(

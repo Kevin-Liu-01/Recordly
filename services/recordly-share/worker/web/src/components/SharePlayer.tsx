@@ -54,6 +54,18 @@ export default function SharePlayer({
   seek,
 }: Props) {
   const shell = useRef<HTMLDivElement>(null);
+  const [poster, setPoster] = useState<string>();
+  useEffect(() => {
+    let active = true;
+    setPoster(undefined);
+    const image = new Image();
+    const url = `/thumb/${data.shareCode}`;
+    image.onload = () => { if (active) setPoster(url); };
+    // A missing poster must not obscure the video element's decoded first frame.
+    image.onerror = () => { if (active) setPoster(undefined); };
+    image.src = url;
+    return () => { active = false; image.onload = null; image.onerror = null; };
+  }, [data.shareCode]);
   const markers = useRef<HTMLDivElement>(null);
   const [trackWidth, setTrackWidth] = useState(500);
   const [playing, setPlaying] = useState(false);
@@ -167,7 +179,7 @@ export default function SharePlayer({
         <video
           ref={videoRef}
           src={`/v/${data.shareCode}`}
-          poster={`/thumb/${data.shareCode}`}
+          poster={poster}
           preload="metadata"
           playsInline
           onClick={() => void togglePlay()}

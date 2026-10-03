@@ -419,6 +419,7 @@ function CursorClickEffectCards({
 }
 
 interface SettingsPanelProps {
+	onShowOnboarding?: () => void;
 	advanced?: boolean;
 	panelMode?: "editor" | "background";
 	activeEffectSection?: EditorEffectSection;
@@ -875,6 +876,7 @@ function CursorStylePreview({
 }
 
 export function SettingsPanel({
+	onShowOnboarding,
 	advanced = false,
 	panelMode = "editor",
 	activeEffectSection: activeEffectSectionProp,
@@ -2251,6 +2253,14 @@ export function SettingsPanel({
 				categories={advanced ? ["general", "motion", "advanced"] : ["general", "motion"]}
 			>
 				<SettingsCategory category="general">
+					{onShowOnboarding && (
+						<SettingsRow title="Onboarding">
+							<Button variant="secondary" size="sm" onClick={onShowOnboarding}>
+								Show onboarding
+							</Button>
+						</SettingsRow>
+					)}
+
 					<SettingsRow title={t("editor.theme.appearance", "Appearance")} stacked>
 						<ChoiceGroup
 							type="single"

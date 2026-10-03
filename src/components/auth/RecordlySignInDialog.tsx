@@ -1,3 +1,5 @@
+import { GithubLogo } from "@phosphor-icons/react";
+import { OnboardingFeature } from "./OnboardingFeature";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { demoLoginEnabled } from "@/lib/auth/demoSession";
 import { useI18n } from "@/contexts/I18nContext";
@@ -17,7 +19,7 @@ import {
 	Alert,
 } from "@heroui/react";
 import {
-	sendPasswordReset,
+	sendSignInLink,
 	signInWithEmail,
 	signInWithSocial,
 	signOutRecordly,
@@ -29,6 +31,7 @@ export type SignInReason = "account" | "share";
 
 type Props = {
 	variant?: "compact" | "wide";
+	onboarding?: boolean;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	reason?: SignInReason;
@@ -49,6 +52,7 @@ function friendlyAuthError(
 			return t("editor.cloud.googleUnavailable");
 		}
 		if (action === "azure") return "Microsoft sign-in is not available yet.";
+		if (action === "github") return "GitHub sign-in is not available yet.";
 		return t("editor.cloud.providerUnavailable");
 	}
 	return message;
@@ -56,6 +60,7 @@ function friendlyAuthError(
 
 export function RecordlySignInDialog({
 	variant = "compact",
+	onboarding = false,
 	open,
 	onOpenChange,
 	user,
@@ -65,20 +70,24 @@ export function RecordlySignInDialog({
 }: Props) {
 	const { t } = useI18n();
 	const awaitingSignIn = useRef(false);
-	const wide = variant === "wide";
+	const wide = onboarding || variant === "wide";
+	const [featureStep, setFeatureStep] = useState(-1);
+	const feature = onboarding && featureStep >= 0;
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
+	const demoEmail = demoLoginEnabled && email.trim().toLowerCase() === "test@email.com";
 	const [busy, setBusy] = useState<string>();
 	const [message, setMessage] = useState<string>();
-	const [resetSent, setResetSent] = useState(false);
+	const [linkSent, setLinkSent] = useState(false);
 
 	useEffect(() => {
 		if (!open) {
 			setPassword("");
+			setFeatureStep(-1);
 			awaitingSignIn.current = false;
 			setBusy(undefined);
 			setMessage(undefined);
-			setResetSent(false);
+			setLinkSent(false);
 		}
 	}, [open]);
 
@@ -88,14 +97,15 @@ export function RecordlySignInDialog({
 		else if (awaitingSignIn.current) {
 			awaitingSignIn.current = false;
 			setMessage(undefined);
-			onAuthenticated();
+			if (onboarding) setFeatureStep(0);
+			else onAuthenticated();
 		}
-	}, [open, user, onAuthenticated]);
+	}, [open, user, onAuthenticated, onboarding]);
 
 	const run = async (label: string, action: () => Promise<unknown>) => {
 		setBusy(label);
 		setMessage(undefined);
-		setResetSent(false);
+		setLinkSent(false);
 		try {
 			await action();
 		} catch (error) {
@@ -108,6 +118,10 @@ export function RecordlySignInDialog({
 	const submitEmail = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		if ((!configured && !demoLoginEnabled) || busy) return;
+		if (!demoEmail) {
+			emailSignInLink();
+			return;
+		}
 		void run("email", async () => {
 			if (!configured && email.trim().toLowerCase() !== "test@email.com") {
 				throw new Error("Email sign-in is not available yet.");
@@ -116,15 +130,17 @@ export function RecordlySignInDialog({
 		});
 	};
 
-	const forgotPassword = () => {
-		if (!email.trim()) {
+	const emailSignInLink = () => {
+		if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
 			setMessage(t("editor.cloud.enterEmail"));
 			return;
 		}
-		void run("reset", async () => {
-			await sendPasswordReset(email.trim());
-			setMessage(t("editor.cloud.resetSent"));
-			setResetSent(true);
+		void run("link", async () => {
+			await sendSignInLink(email.trim());
+			setMessage(
+				"Check your inbox to verify your email and continue to Recordly. Open the link on this computer with Recordly running.",
+			);
+			setLinkSent(true);
 		});
 	};
 
@@ -143,239 +159,282 @@ export function RecordlySignInDialog({
 			<Modal.Backdrop>
 				<Modal.Container size="cover" placement="center" className="p-4 sm:p-8">
 					<MotionDialog
-						layout
+						layout={!onboarding}
 						transition={transition}
-						className={`h-auto min-h-0 w-full max-h-[calc(100dvh-48px)] gap-0 overflow-y-auto rounded-[32px] p-2 ${wide ? "max-w-[1120px] md:grid md:grid-cols-2 md:aspect-[28/19]" : "max-w-[600px]"}`}
+						aria-label={onboarding ? "Welcome to Recordly" : undefined}
+						data-onboarding-state={
+							onboarding ? (feature ? "feature" : "login") : undefined
+						}
+						className={`h-auto min-h-0 w-full max-h-[calc(100dvh-48px)] gap-0 overflow-y-auto rounded-[32px] p-2 ${wide ? `max-w-[1120px] md:grid ${feature ? "md:grid-cols-1 md:aspect-[16/10]" : "md:grid-cols-2 md:aspect-[28/19]"}` : "max-w-[600px]"}`}
 					>
 						<div
-							aria-hidden="true"
-							className={`relative h-32 shrink-0 overflow-hidden rounded-[24px] sm:h-36 ${wide ? "md:order-2 md:h-full md:min-h-0" : ""}`}
+							data-onboarding-artwork={onboarding || undefined}
+							className={`relative shrink-0 overflow-hidden rounded-[24px] ${feature ? "h-[min(680px,calc(100dvh-96px))] min-h-[440px] md:col-span-full md:h-full" : `h-32 sm:h-36 ${wide ? "md:order-2 md:h-full md:min-h-0" : ""}`}`}
 						>
-							<picture>
-								{wide && (
-									<source
-										media="(min-width: 768px)"
-										srcSet={`${import.meta.env.BASE_URL}auth/login-side.png`}
-									/>
-								)}
-								<img
-									src={artwork}
-									alt=""
-									className={`absolute inset-0 size-full object-cover object-[center_40%] ${wide ? "md:object-center" : ""}`}
+							<motion.img
+								layout={onboarding && !reduceMotion}
+								transition={{ ...transition, duration: reduceMotion ? 0 : 0.5 }}
+								src={
+									wide
+										? `${import.meta.env.BASE_URL}auth/login-side.png`
+										: artwork
+								}
+								alt=""
+								className="absolute inset-0 size-full object-cover object-center"
+							/>
+							{feature && (
+								<OnboardingFeature
+									step={featureStep}
+									onStep={setFeatureStep}
+									onFinish={onAuthenticated}
 								/>
-							</picture>
+							)}
 						</div>
 						<Modal.CloseTrigger
 							aria-label={t("common.actions.close")}
 							className="z-20"
 						/>
 
-						<motion.div
-							layout="position"
-							transition={transition}
-							className={`flex flex-1 flex-col justify-center px-6 py-7 sm:px-10 ${wide ? "md:order-1 md:min-w-0" : ""}`}
-						>
-							<div className="w-full max-w-[420px] self-center space-y-5 @container">
-								<motion.div {...reveal}>
-									<Modal.Header className="items-center gap-4 text-center">
-										<div
-											className="flex items-center gap-3"
-											aria-label="Recordly"
-										>
-											<img
-												src={`${import.meta.env.BASE_URL}app-icons/recordly-128.png`}
-												alt=""
-												className="size-12 rounded-xl"
-											/>
-											<span className="text-3xl font-semibold tracking-tight">
-												Recordly
-											</span>
-										</div>
-										<Modal.Heading className="whitespace-nowrap text-[clamp(12px,5cqw,22px)] font-semibold leading-tight tracking-tight">
-											{user
-												? "Your account"
-												: "Beautiful, shareable screen recordings"}
-										</Modal.Heading>
-										{user && (
+						{!feature && (
+							<motion.div
+								layout="position"
+								transition={transition}
+								className={`flex flex-1 flex-col justify-center px-5 py-6 sm:px-8 ${wide ? "md:order-1 md:min-w-0" : ""}`}
+							>
+								<div className="w-full max-w-[420px] self-center space-y-4 @container">
+									<motion.div {...reveal}>
+										<Modal.Header className="items-center gap-3 text-center">
+											<div
+												className="flex items-center gap-3"
+												aria-label="Recordly"
+											>
+												<img
+													src={`${import.meta.env.BASE_URL}app-icons/recordly-128.png`}
+													alt=""
+													className="size-12 rounded-xl"
+												/>
+												<span className="text-3xl font-semibold tracking-tight">
+													Recordly
+												</span>
+											</div>
+											<Modal.Heading className="whitespace-nowrap text-[clamp(12px,5cqw,22px)] font-semibold leading-tight tracking-tight">
+												{user
+													? "Your account"
+													: "Beautiful, shareable screen recordings"}
+											</Modal.Heading>
 											<Description className="text-sm">
-												{user.email}
+												{user ? user.email : "Sign in to get started"}
 											</Description>
-										)}
-									</Modal.Header>
-								</motion.div>
-								{user ? (
-									<Button
-										variant="secondary"
-										className="w-full"
-										isDisabled={disabled}
-										onPress={() => void run("signout", signOutRecordly)}
-									>
-										<SignOut className="size-4" />
-										{busy === "signout"
-											? t("editor.cloud.signingOut")
-											: t("editor.cloud.signOut")}
-									</Button>
-								) : (
-									<>
-										<motion.div
-											{...reveal}
-											transition={{
-												...transition,
-												delay: reduceMotion ? 0 : 0.05,
-											}}
-											className="flex flex-col items-center gap-3"
+										</Modal.Header>
+									</motion.div>
+									{user && onboarding ? (
+										<Button
+											variant="primary"
+											className="w-full"
+											onPress={() => setFeatureStep(0)}
 										>
-											<Button
-												variant="secondary"
-												size="lg"
-												className="w-full gap-3"
-												isDisabled={disabled || !configured}
-												onPress={() =>
-													void run("google", () =>
-														signInWithSocial("google"),
-													)
-												}
-											>
-												<img
-													src={`${import.meta.env.BASE_URL}auth/google-logo.png`}
-													alt=""
-													className="size-5 shrink-0"
-												/>
-												Continue with Google
-											</Button>
-											<Button
-												variant="secondary"
-												size="lg"
-												className="w-full gap-3"
-												isDisabled={disabled || !configured}
-												onPress={() =>
-													void run("azure", () =>
-														signInWithSocial("azure"),
-													)
-												}
-											>
-												<img
-													src={`${import.meta.env.BASE_URL}auth/microsoft-logo.svg`}
-													alt=""
-													className="size-5 shrink-0"
-												/>
-												Continue with Microsoft
-											</Button>
-										</motion.div>
-										<div className="flex items-center gap-4">
-											<Separator className="flex-1" />
-											<span className="text-xs text-muted">
-												or continue with email
-											</span>
-											<Separator className="flex-1" />
-										</div>
-										<Form className="flex flex-col" onSubmit={submitEmail}>
-											<TextField
-												name="email"
-												type="email"
-												value={email}
-												onChange={(value) => {
-													setEmail(value);
-													setMessage(undefined);
-													if (!value.trim()) setPassword("");
+											Continue
+										</Button>
+									) : user ? (
+										<Button
+											variant="secondary"
+											className="w-full"
+											isDisabled={disabled}
+											onPress={() => void run("signout", signOutRecordly)}
+										>
+											<SignOut className="size-4" />
+											{busy === "signout"
+												? t("editor.cloud.signingOut")
+												: t("editor.cloud.signOut")}
+										</Button>
+									) : (
+										<>
+											<motion.div
+												{...reveal}
+												transition={{
+													...transition,
+													delay: reduceMotion ? 0 : 0.05,
 												}}
-												isRequired
-												isDisabled={disabled}
+												className="grid grid-cols-3 gap-2"
 											>
-												<Label>Email</Label>
-												<Input
-													className="h-12"
-													placeholder="you@example.com"
-													autoComplete="email"
-												/>
-												<FieldError />
-											</TextField>
-											<AnimatePresence initial={false}>
-												{expanded && (
-													<motion.div
-														key="password-fields"
-														initial={{ height: 0, opacity: 0 }}
-														animate={{ height: "auto", opacity: 1 }}
-														exit={{ height: 0, opacity: 0 }}
-														transition={transition}
-														className="overflow-hidden"
-														inert={!expanded}
+												{(
+													[
+														{
+															provider: "google",
+															label: "Google",
+															image: "google-logo.png",
+														},
+														{
+															provider: "azure",
+															label: "Microsoft",
+															image: "microsoft-logo.svg",
+														},
+														{
+															provider: "github",
+															label: "GitHub",
+															image: null,
+														},
+													] as const
+												).map(({ provider, label, image }) => (
+													<Button
+														key={provider}
+														variant="secondary"
+														aria-label={`Continue with ${label}`}
+														className="h-11 w-full min-w-0 gap-2 rounded-xl px-2 text-xs font-medium text-foreground @[360px]:text-sm"
+														isDisabled={disabled || !configured}
+														onPress={() =>
+															void run(provider, () =>
+																signInWithSocial(provider),
+															)
+														}
 													>
-														<motion.div
-															initial={{ y: reduceMotion ? 0 : -8 }}
-															animate={{ y: 0 }}
-															exit={{ y: reduceMotion ? 0 : -8 }}
-															transition={transition}
-															className="flex flex-col gap-5 px-1 pb-1 pt-5"
+														{image ? (
+															<img
+																src={`${import.meta.env.BASE_URL}auth/${image}`}
+																alt=""
+																className="size-4 shrink-0"
+															/>
+														) : (
+															<GithubLogo
+																aria-hidden="true"
+																weight="fill"
+																className="size-4 shrink-0"
+															/>
+														)}
+														{label}
+													</Button>
+												))}
+											</motion.div>
+											<div className="flex items-center gap-4">
+												<Separator className="flex-1" />
+												<span className="text-xs text-muted">
+													or continue with email
+												</span>
+												<Separator className="flex-1" />
+											</div>
+											<Form className="flex flex-col" onSubmit={submitEmail}>
+												<TextField
+													name="email"
+													type="email"
+													value={email}
+													onChange={(value) => {
+														setEmail(value);
+														setLinkSent(false);
+														setMessage(undefined);
+														if (!value.trim()) setPassword("");
+													}}
+													isRequired
+													isDisabled={disabled}
+												>
+													<Label>Email</Label>
+													<Input
+														className="h-12"
+														placeholder="you@example.com"
+														autoComplete="email"
+													/>
+													<FieldError />
+												</TextField>
+												{!demoEmail && (
+														<Button
+															type="submit"
+															variant="primary"
+															className="mt-3 h-12 w-full"
+															isDisabled={disabled || !configured}
 														>
-															<TextField
-																name="password"
-																type="password"
-																value={password}
-																onChange={setPassword}
-																isRequired
-																isDisabled={disabled}
+															{busy === "link"
+																? "Sending sign-in link…"
+																: "Email me a magic link"}
+														</Button>
+													)}
+												<AnimatePresence initial={false}>
+													{expanded && demoEmail && (
+														<motion.div
+															key="password-fields"
+															initial={{ height: 0, opacity: 0 }}
+															animate={{ height: "auto", opacity: 1 }}
+															exit={{ height: 0, opacity: 0 }}
+															transition={transition}
+															className="overflow-hidden"
+															inert={!expanded}
+														>
+															<motion.div
+																initial={{
+																	y: reduceMotion ? 0 : -8,
+																}}
+																animate={{ y: 0 }}
+																exit={{ y: reduceMotion ? 0 : -8 }}
+																transition={transition}
+																className="flex flex-col gap-5 px-1 pb-1 pt-5"
 															>
-																<Label>Password</Label>
-																<Input
-																	className="h-12"
-																	autoComplete="current-password"
-																/>
-																<FieldError />
-															</TextField>
-															{configured && (
-																<Button
-																	variant="ghost"
-																	size="sm"
-																	className="-mt-3 self-end"
+																<TextField
+																	name="password"
+																	type="password"
+																	value={password}
+																	onChange={setPassword}
+																	isRequired
 																	isDisabled={disabled}
-																	onPress={forgotPassword}
 																>
-																	{t(
-																		"editor.cloud.forgotPassword",
-																	)}
+																	<Label>Password</Label>
+																	<Input
+																		className="h-12"
+																		autoComplete="current-password"
+																	/>
+																	<FieldError />
+																</TextField>
+																<Button
+																	type="submit"
+																	size="lg"
+																	className="w-full"
+																	isDisabled={
+																		disabled ||
+																		(!configured &&
+																			!demoLoginEnabled)
+																	}
+																>
+																	{busy === "email"
+																		? t(
+																				"editor.cloud.signingIn",
+																			)
+																		: "Sign in"}
 																</Button>
-															)}
-															<Button
-																type="submit"
-																size="lg"
-																className="w-full"
-																isDisabled={
-																	disabled ||
-																	(!configured &&
-																		!demoLoginEnabled)
-																}
-															>
-																{busy === "email"
-																	? t("editor.cloud.signingIn")
-																	: "Sign in"}
-															</Button>
+															</motion.div>
 														</motion.div>
-													</motion.div>
-												)}
-											</AnimatePresence>
-										</Form>
-									</>
-								)}
-								{message || callbackError ? (
-									<Alert
-										status={resetSent && !callbackError ? "success" : "danger"}
-									>
-										<Alert.Indicator />
-										<Alert.Content>
-											<Alert.Description>
-												{message || callbackError}
-											</Alert.Description>
-										</Alert.Content>
-									</Alert>
-								) : null}
-								{!configured && !demoLoginEnabled && !user && (
-									<Description role="status">
-										{t("editor.cloud.unavailable")}
-									</Description>
-								)}
-							</div>
-						</motion.div>
+													)}
+												</AnimatePresence>
+											</Form>
+										</>
+									)}
+									{onboarding && !user && (
+										<Button
+											variant="ghost"
+											className="w-full"
+											onPress={() => setFeatureStep(0)}
+										>
+											Continue without signing in
+										</Button>
+									)}
+									{message || callbackError ? (
+										<Alert
+											status={
+												linkSent && !callbackError ? "success" : "danger"
+											}
+										>
+											<Alert.Indicator />
+											<Alert.Content>
+												<Alert.Description>
+													{message || callbackError}
+												</Alert.Description>
+											</Alert.Content>
+										</Alert>
+									) : null}
+									{!configured && !demoLoginEnabled && !user && (
+										<Description role="status">
+											{t("editor.cloud.unavailable")}
+										</Description>
+									)}
+								</div>
+							</motion.div>
+						)}
 					</MotionDialog>
 				</Modal.Container>
 			</Modal.Backdrop>

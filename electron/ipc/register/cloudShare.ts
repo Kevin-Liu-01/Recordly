@@ -1,9 +1,14 @@
+import { createShareThumbnail } from "../recording/shareThumbnail";
 import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Transform } from "node:stream";
 import { ipcMain } from "electron";
-import { normalizeCloudEndpoint, parseCloudShareTicket } from "../cloudShareContract";
+import {
+	normalizeCloudEndpoint,
+	parseCloudRecordingList,
+	parseCloudShareTicket,
+} from "../cloudShareContract";
 import { isOwnedExportPath } from "../export/exportStream";
 import { isAllowedLocalReadPath } from "../project/manager";
 
@@ -250,6 +255,58 @@ async function uploadMultipart(options: {
 
 export function registerCloudShareHandlers() {
 	ipcMain.handle(
+		"cloud-share-manage",
+		async (
+			_event,
+			input: { endpoint?: unknown; token?: unknown; action?: unknown; shareCode?: unknown },
+		) => {
+			try {
+				const endpoint = normalizeCloudEndpoint(input?.endpoint);
+				if (
+					typeof input.token !== "string" ||
+					!input.token ||
+					Buffer.byteLength(input.token) > MAX_AUTH_TOKEN_BYTES
+				)
+					throw new Error("Sign in to manage shared recordings.");
+				if (input.action !== "list" && input.action !== "delete")
+					throw new Error("Invalid recording action.");
+				if (
+					input.action === "delete" &&
+					(typeof input.shareCode !== "string" ||
+						!/^[a-z0-9]{1,128}$/.test(input.shareCode))
+				)
+					throw new Error("Invalid recording ID.");
+				const response = await fetch(
+					new URL(
+						input.action === "list" ? "/api/videos" : `/api/delete/${input.shareCode}`,
+						endpoint,
+					),
+					{
+						method: input.action === "list" ? "GET" : "DELETE",
+						headers: { authorization: `Bearer ${input.token}` },
+						redirect: "error",
+						signal: AbortSignal.timeout(30000),
+					},
+				);
+				if (!response.ok)
+					throw new Error(
+						await responseError(response, "Could not manage shared recordings"),
+					);
+				if (input.action === "delete") return { success: true };
+				return {
+					success: true,
+					videos: parseCloudRecordingList(await readJsonResponse(response), endpoint),
+				};
+			} catch (error) {
+				return {
+					success: false,
+					error: error instanceof Error ? error.message : String(error),
+				};
+			}
+		},
+	);
+
+	ipcMain.handle(
 		"cloud-share-upload",
 		async (
 			event,
@@ -415,6 +472,37 @@ export function registerCloudShareHandlers() {
 						);
 					}
 				}
+				if (ticket.shareCode) {
+					try {
+						const thumbnail = await createShareThumbnail(
+							resolvedPath,
+							controller.signal,
+						);
+						const response = await fetch(
+							new URL(`/api/upload-thumbnail/${ticket.shareCode}`, endpointOrigin),
+							{
+								method: "PUT",
+								headers: {
+									authorization: `Bearer ${token}`,
+									"content-type": "image/jpeg",
+									"content-length": String(thumbnail.length),
+								},
+								body: new Uint8Array(thumbnail),
+								redirect: "error",
+								signal: controller.signal,
+							},
+						);
+						if (!response.ok)
+							throw new Error(`Thumbnail upload failed (${response.status})`);
+					} catch {
+						// The recording is already published. Older/missing posters use the
+						// video's first frame in the library instead of failing the share.
+						console.warn(
+							"Shared video poster unavailable; using video preview fallback.",
+						);
+					}
+				}
+
 				return { success: true, uploadId, shareUrl: ticket.shareUrl };
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);

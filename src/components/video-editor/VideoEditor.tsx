@@ -162,13 +162,8 @@ export default function VideoEditor() {
 		t,
 		appearance,
 		timeline,
-		exportSettings,
 		aspectRatio,
 		setAspectRatio,
-		whisperExecutablePath,
-		setWhisperExecutablePath,
-		whisperModelPath,
-		setWhisperModelPath,
 	});
 	const { refreshProjectLibrary, captureProjectThumbnail } = useProjectLibraryController({
 		project,
@@ -223,7 +218,6 @@ export default function VideoEditor() {
 		project,
 		appearance,
 		timeline,
-		exportSettings,
 		initialPreferences: initialEditorPreferences,
 		smokeConfig: smokeExportConfig,
 		devConfig: devOpenRecordingConfig,

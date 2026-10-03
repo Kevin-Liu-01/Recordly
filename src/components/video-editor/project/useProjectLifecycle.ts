@@ -10,7 +10,6 @@ import {
 } from "react";
 import { toast } from "@/components/ui/toast";
 import type { AspectRatio } from "@/utils/aspectRatioUtils";
-import type { useExportSettings } from "../export/useExportSettings";
 import type { UnsavedChangesDecision } from "../layout/EditorDialogs";
 import {
 	createProjectData,
@@ -35,7 +34,6 @@ type Input = {
 	project: ReturnType<typeof useProjectState>;
 	appearance: ReturnType<typeof useAppearanceState>;
 	timeline: ReturnType<typeof useTimelineState>;
-	exportSettings: ReturnType<typeof useExportSettings>;
 	aspectRatio: AspectRatio;
 	setAspectRatio: Dispatch<SetStateAction<AspectRatio>>;
 	currentSourcePath: string | null;
@@ -81,7 +79,7 @@ export function useProjectLifecycle(input: Input) {
 
 	const applyLoadedProject = useCallback(async (candidate: unknown, path?: string | null) => {
 		const current = inputRef.current;
-		const { project, appearance, timeline, exportSettings, refs } = current;
+		const { project, appearance, timeline, refs } = current;
 		if (!validateProjectData(candidate)) return false;
 		const loadedProject = candidate;
 		const sourcePath = fromFileUrl(loadedProject.videoPath);
@@ -185,15 +183,6 @@ export function useProjectLifecycle(input: Input) {
 		timeline.setAutoCaptions(editor.autoCaptions);
 		timeline.setAutoCaptionSettings(editor.autoCaptionSettings);
 		current.setAspectRatio(editor.aspectRatio);
-		exportSettings.setExportEncodingMode(editor.exportEncodingMode);
-		exportSettings.setExportBackendPreference(editor.exportBackendPreference);
-		exportSettings.setExportPipelineModel(editor.exportPipelineModel);
-		exportSettings.setExportQuality(editor.exportQuality);
-		exportSettings.setMp4FrameRate(editor.mp4FrameRate);
-		exportSettings.setExportFormat(editor.exportFormat);
-		exportSettings.setGifFrameRate(editor.gifFrameRate);
-		exportSettings.setGifLoop(editor.gifLoop);
-		exportSettings.setGifSizePreset(editor.gifSizePreset);
 		timeline.setSelectedZoomId(null);
 		timeline.setSelectedClipId(null);
 		timeline.setSelectedAnnotationId(null);

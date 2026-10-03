@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
+const emailOtp = vi.hoisted(() => vi.fn(async (_options: unknown) => ({ error: null })));
 const exchange = vi.hoisted(() => vi.fn(async (_code: string) => ({ error: null })));
 const oauth = vi.hoisted(() =>
 	vi.fn(async (_options: unknown) => ({
@@ -8,12 +9,15 @@ const oauth = vi.hoisted(() =>
 	})),
 );
 vi.mock("@supabase/supabase-js", () => ({
-	createClient: () => ({ auth: { exchangeCodeForSession: exchange, signInWithOAuth: oauth } }),
+	createClient: () => ({
+		auth: { exchangeCodeForSession: exchange, signInWithOAuth: oauth, signInWithOtp: emailOtp },
+	}),
 }));
 beforeEach(() => {
 	vi.resetModules();
 	exchange.mockClear();
 	oauth.mockClear();
+	emailOtp.mockClear();
 	vi.stubEnv("VITE_SUPABASE_URL", "https://auth.example.test");
 	vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", "test-key");
 });
@@ -52,4 +56,29 @@ it("requests Microsoft's email scope and opens its OAuth URL externally", async 
 		}),
 	);
 	expect(openExternalUrl).toHaveBeenCalledExactlyOnceWith("https://auth.example.test/oauth");
+});
+
+for (const dev of [true, false]) {
+	it(`requests an app-initiated email link with the ${dev ? "development" : "installed"} callback`, async () => {
+		vi.stubEnv("DEV", dev);
+		const { sendSignInLink } = await import("./recordlyAuth");
+		await sendSignInLink("owner@example.test");
+		expect(emailOtp).toHaveBeenCalledExactlyOnceWith({
+			email: "owner@example.test",
+			options: {
+				emailRedirectTo: dev
+					? "http://127.0.0.1:43821/auth/callback"
+					: "recordly://auth/callback",
+				shouldCreateUser: true,
+			},
+		});
+	});
+}
+
+it("does not accept dashboard implicit session tokens as a PKCE callback", async () => {
+	const { completeAuthCallback } = await import("./recordlyAuth");
+	await expect(
+		completeAuthCallback("recordly://auth/callback#access_token=test&refresh_token=test"),
+	).rejects.toThrow("Request a new sign-in link from Recordly");
+	expect(exchange).not.toHaveBeenCalled();
 });

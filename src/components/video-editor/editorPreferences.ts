@@ -1,10 +1,8 @@
+import { normalizeExportPreferences, type ExportPreferences } from "./exportPreferences";
 import { loadAppSetting, saveAppSetting } from "../../lib/appSettings";
 import {
 	getDefaultBorderRadiusPercent,
 	legacyBorderRadiusPixelsToPercent,
-	normalizeExportBackendPreference,
-	normalizeExportMp4FrameRate,
-	normalizeExportPipelineModel,
 	normalizeProjectEditor,
 	type ProjectEditorState,
 	stripPersistedDevMotionBlurSettings,
@@ -50,15 +48,6 @@ type PersistedEditorControls = Pick<
 	| "padding"
 	| "webcam"
 	| "aspectRatio"
-	| "exportEncodingMode"
-	| "exportBackendPreference"
-	| "exportPipelineModel"
-	| "exportQuality"
-	| "mp4FrameRate"
-	| "exportFormat"
-	| "gifFrameRate"
-	| "gifLoop"
-	| "gifSizePreset"
 >;
 
 type PartialEditorControls = Partial<PersistedEditorControls>;
@@ -72,8 +61,6 @@ export interface EditorPresetSnapshot extends Omit<PersistedEditorControls, "web
 	cropRegion: PresetCropRegion;
 	webcam: PresetWebcamSettings;
 	autoCaptionSettings: PresetAutoCaptionSettings;
-	whisperExecutablePath: string | null;
-	whisperModelPath: string | null;
 }
 
 export interface EditorPreset {
@@ -84,7 +71,7 @@ export interface EditorPreset {
 	snapshot: EditorPresetSnapshot;
 }
 
-export interface EditorPreferences extends PersistedEditorControls {
+export interface EditorPreferences extends PersistedEditorControls, ExportPreferences {
 	borderRadiusUnit: "percent";
 	customAspectWidth: string;
 	customAspectHeight: string;
@@ -139,15 +126,7 @@ export const DEFAULT_EDITOR_PREFERENCES: EditorPreferences = {
 	padding: DEFAULT_EDITOR_CONTROLS.padding,
 	webcam: DEFAULT_EDITOR_CONTROLS.webcam,
 	aspectRatio: DEFAULT_EDITOR_CONTROLS.aspectRatio,
-	exportEncodingMode: DEFAULT_EDITOR_CONTROLS.exportEncodingMode,
-	exportBackendPreference: DEFAULT_EDITOR_CONTROLS.exportBackendPreference,
-	exportPipelineModel: DEFAULT_EDITOR_CONTROLS.exportPipelineModel,
-	exportQuality: DEFAULT_EDITOR_CONTROLS.exportQuality,
-	mp4FrameRate: DEFAULT_EDITOR_CONTROLS.mp4FrameRate,
-	exportFormat: DEFAULT_EDITOR_CONTROLS.exportFormat,
-	gifFrameRate: DEFAULT_EDITOR_CONTROLS.gifFrameRate,
-	gifLoop: DEFAULT_EDITOR_CONTROLS.gifLoop,
-	gifSizePreset: DEFAULT_EDITOR_CONTROLS.gifSizePreset,
+	...normalizeExportPreferences({}),
 	customAspectWidth: "16",
 	customAspectHeight: "9",
 	customWallpapers: [],
@@ -226,11 +205,6 @@ function normalizeEditorPresetSnapshot(candidate: unknown): EditorPresetSnapshot
 		webcam,
 		cropRegion: normalizedCropRegion,
 		autoCaptionSettings: normalizePresetAutoCaptionSettings(raw.autoCaptionSettings),
-		whisperExecutablePath:
-			normalizeNullablePath(raw.whisperExecutablePath) ??
-			normalizedPreferences.whisperExecutablePath,
-		whisperModelPath:
-			normalizeNullablePath(raw.whisperModelPath) ?? normalizedPreferences.whisperModelPath,
 	};
 }
 
@@ -348,24 +322,6 @@ function normalizeEditorControls(
 		padding: sanitizedRaw.padding ?? fallback.padding,
 		webcam: sanitizedRaw.webcam ?? fallback.webcam,
 		aspectRatio: sanitizedRaw.aspectRatio ?? fallback.aspectRatio,
-		exportEncodingMode: sanitizedRaw.exportEncodingMode ?? fallback.exportEncodingMode,
-		exportBackendPreference:
-			sanitizedRaw.exportBackendPreference === undefined
-				? fallback.exportBackendPreference
-				: normalizeExportBackendPreference(sanitizedRaw.exportBackendPreference),
-		exportPipelineModel:
-			sanitizedRaw.exportPipelineModel === undefined
-				? fallback.exportPipelineModel
-				: normalizeExportPipelineModel(sanitizedRaw.exportPipelineModel),
-		exportQuality: sanitizedRaw.exportQuality ?? fallback.exportQuality,
-		mp4FrameRate:
-			sanitizedRaw.mp4FrameRate === undefined
-				? fallback.mp4FrameRate
-				: normalizeExportMp4FrameRate(sanitizedRaw.mp4FrameRate),
-		exportFormat: sanitizedRaw.exportFormat ?? fallback.exportFormat,
-		gifFrameRate: sanitizedRaw.gifFrameRate ?? fallback.gifFrameRate,
-		gifLoop: sanitizedRaw.gifLoop ?? fallback.gifLoop,
-		gifSizePreset: sanitizedRaw.gifSizePreset ?? fallback.gifSizePreset,
 	};
 
 	const normalized = normalizeProjectEditor(candidate);
@@ -409,15 +365,6 @@ function normalizeEditorControls(
 		padding: normalized.padding,
 		webcam: normalized.webcam,
 		aspectRatio: normalized.aspectRatio,
-		exportEncodingMode: normalized.exportEncodingMode,
-		exportBackendPreference: normalized.exportBackendPreference,
-		exportPipelineModel: normalized.exportPipelineModel,
-		exportQuality: normalized.exportQuality,
-		mp4FrameRate: normalized.mp4FrameRate,
-		exportFormat: normalized.exportFormat,
-		gifFrameRate: normalized.gifFrameRate,
-		gifLoop: normalized.gifLoop,
-		gifSizePreset: normalized.gifSizePreset,
 	};
 }
 
@@ -440,6 +387,7 @@ export function normalizeEditorPreferences(
 
 	return {
 		...normalizeEditorControls(controls, fallback),
+		...normalizeExportPreferences({ ...fallback, ...raw }),
 		borderRadiusUnit: "percent",
 		customAspectWidth: normalizePositiveIntegerString(
 			raw.customAspectWidth,

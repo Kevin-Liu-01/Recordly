@@ -139,18 +139,19 @@ describe("StreamingVideoDecoder decode failures", () => {
 			codedWidth: 1920,
 			codedHeight: 1080,
 		});
-		mockDemuxerRead.mockReturnValue(
-			new ReadableStream({
-				start(controller) {
-					controller.enqueue({
-						type: "key",
-						timestamp: 0,
-						duration: 33_333,
-						byteLength: 4,
-					});
-					controller.close();
-				},
-			}),
+		mockDemuxerRead.mockImplementation(
+			() =>
+				new ReadableStream({
+					start(controller) {
+						controller.enqueue({
+							type: "key",
+							timestamp: 0,
+							duration: 33_333,
+							byteLength: 4,
+						});
+						controller.close();
+					},
+				}),
 		);
 		Object.assign(globalThis, {
 			window: {
@@ -168,7 +169,7 @@ describe("StreamingVideoDecoder decode failures", () => {
 	});
 
 	it("does not emit frozen remaining frames after a decoder error", async () => {
-		const frame = { timestamp: 0, close: vi.fn() } as unknown as VideoFrame;
+		const frames: Array<{ timestamp: number; close: ReturnType<typeof vi.fn> }> = [];
 		class FailingVideoDecoder {
 			state: CodecState = "unconfigured";
 			decodeQueueSize = 0;
@@ -182,7 +183,9 @@ describe("StreamingVideoDecoder decode failures", () => {
 				this.state = "configured";
 			}
 			decode() {
-				this.callbacks.output(frame);
+				const frame = { timestamp: 0, close: vi.fn() };
+				frames.push(frame);
+				this.callbacks.output(frame as unknown as VideoFrame);
 				this.callbacks.error(new DOMException("bad frame", "EncodingError"));
 			}
 			async flush() {}
@@ -196,11 +199,193 @@ describe("StreamingVideoDecoder decode failures", () => {
 		await decoder.loadMetadata("/tmp/failing.mp4");
 		const onFrame = vi.fn(async () => {});
 
-		await expect(decoder.decodeAll(30, undefined, undefined, onFrame)).rejects.toThrow(
-			"[VIDEO_DECODE_ENCODING_ERROR]",
+		const failure = await decoder
+			.decodeAll(30, undefined, undefined, onFrame)
+			.catch((error) => error);
+		expect(failure).toBeInstanceOf(Error);
+		expect(failure.message).toContain("[VIDEO_DECODE_RECOVERY_FAILED]");
+		expect(failure.message).toContain("Initial decoder failure: [VIDEO_DECODE_ENCODING_ERROR]");
+		expect(failure.message).toContain(
+			"Software decoder failure: [VIDEO_DECODE_ENCODING_ERROR]",
 		);
+		expect(failure.message).toContain("hardwareAcceleration=prefer-software");
 		expect(onFrame).not.toHaveBeenCalled();
-		expect(frame.close).toHaveBeenCalledTimes(1);
+		expect(frames).toHaveLength(2);
+		expect(mockDemuxerRead).toHaveBeenCalledTimes(2);
+		for (const frame of frames) expect(frame.close).toHaveBeenCalledTimes(1);
+	});
+
+	it("preserves both failures when the software retry ends before a later kept segment", async () => {
+		const configs: VideoDecoderConfig[] = [];
+		const closeFrame = vi.fn();
+		class EarlyEndDecoder {
+			state: CodecState = "unconfigured";
+			decodeQueueSize = 0;
+			software = false;
+			constructor(
+				private callbacks: {
+					output: (frame: VideoFrame) => void;
+					error: (error: DOMException) => void;
+				},
+			) {}
+			configure(config: VideoDecoderConfig) {
+				configs.push(config);
+				this.software = config.hardwareAcceleration === "prefer-software";
+				this.state = "configured";
+			}
+			decode(chunk: EncodedVideoChunk) {
+				if (!this.software) {
+					this.callbacks.error(new DOMException("original bad frame", "EncodingError"));
+					return;
+				}
+				this.callbacks.output({
+					timestamp: chunk.timestamp,
+					close: closeFrame,
+				} as unknown as VideoFrame);
+			}
+			async flush() {}
+			close() {
+				this.state = "closed";
+			}
+		}
+		vi.stubGlobal("VideoDecoder", EarlyEndDecoder);
+		const decoder = new StreamingVideoDecoder();
+		await decoder.loadMetadata("/tmp/early-end.mp4");
+		const failure = await decoder
+			.decodeAll(30, [{ id: "cut", startMs: 1000, endMs: 3000 }], undefined, vi.fn())
+			.catch((error) => error);
+		expect(failure).toBeInstanceOf(Error);
+		expect(failure.message).toContain("[VIDEO_DECODE_RECOVERY_FAILED]");
+		expect(failure.message).toContain("original bad frame");
+		expect(failure.message).toContain("Software decoder failure: [VIDEO_DECODE_FAILED]");
+		expect(failure.message).toContain("Video decode ended early");
+		expect(failure.message).toContain("chunkIndex=0");
+		expect(failure.message).toContain("hardwareAcceleration=prefer-software");
+		expect(configs).toHaveLength(2);
+		expect(closeFrame).toHaveBeenCalledTimes(1);
+		decoder.destroy();
+	});
+
+	it.each([
+		"EncodingError",
+		"QuotaExceededError",
+	])("replays %s in software without duplicating exported frames", async (errorName) => {
+		mockDemuxerRead.mockImplementation(
+			() =>
+				new ReadableStream({
+					start(controller) {
+						for (let i = 0; i < 120; i++)
+							controller.enqueue({ timestamp: (i * 1_000_000) / 30 });
+						controller.close();
+					},
+				}),
+		);
+		const configs: VideoDecoderConfig[] = [];
+		const timestamps: number[] = [];
+		let framesBeforeRetry = 0;
+		const closedFrames: ReturnType<typeof vi.fn>[] = [];
+		class RecoveringDecoder {
+			state: CodecState = "unconfigured";
+			decodeQueueSize = 0;
+			software = false;
+			constructor(
+				private callbacks: {
+					output: (frame: VideoFrame) => void;
+					error: (error: DOMException) => void;
+				},
+			) {}
+			configure(config: VideoDecoderConfig) {
+				configs.push(config);
+				this.software = config.hardwareAcceleration === "prefer-software";
+				if (this.software) framesBeforeRetry = timestamps.length;
+				this.state = "configured";
+			}
+			decode(chunk: EncodedVideoChunk) {
+				if (!this.software && chunk.timestamp >= 500_000) {
+					this.state = "closed";
+					this.callbacks.error(new DOMException("driver decode failed", errorName));
+					return;
+				}
+				const close = vi.fn();
+				closedFrames.push(close);
+				this.callbacks.output({
+					timestamp: chunk.timestamp,
+					close,
+				} as unknown as VideoFrame);
+			}
+			async flush() {}
+			close() {
+				this.state = "closed";
+			}
+		}
+		vi.stubGlobal("VideoDecoder", RecoveringDecoder);
+		const decoder = new StreamingVideoDecoder();
+		await decoder.loadMetadata("/tmp/driver-failure.mp4");
+		await decoder.decodeAll(30, undefined, undefined, async (_frame, timestamp) => {
+			timestamps.push(timestamp);
+		});
+		expect(configs).toHaveLength(2);
+		expect(configs[1].hardwareAcceleration).toBe("prefer-software");
+		expect(framesBeforeRetry).toBeGreaterThan(0);
+		expect(timestamps).toHaveLength(120);
+		for (let i = 0; i < timestamps.length; i++)
+			expect(timestamps[i]).toBeCloseTo((i * 1_000_000) / 30);
+		expect(mockDemuxerRead).toHaveBeenCalledTimes(2);
+		for (const close of closedFrames) expect(close).toHaveBeenCalledTimes(1);
+	});
+
+	it.each([
+		{
+			codec: "av01.0.04M.08",
+			errorName: "EncodingError",
+			cancelled: false,
+			setupFailure: false,
+		},
+		{ codec: "avc1.640034", errorName: "DataError", cancelled: false, setupFailure: false },
+		{ codec: "avc1.640034", errorName: "EncodingError", cancelled: true, setupFailure: false },
+		{ codec: "avc1.640034", errorName: "EncodingError", cancelled: false, setupFailure: true },
+	])("does not retry $codec / $errorName (cancelled: $cancelled, setup: $setupFailure)", async ({
+		codec,
+		errorName,
+		cancelled,
+		setupFailure,
+	}) => {
+		const info = await mockDemuxerGetMediaInfo();
+		mockDemuxerGetMediaInfo.mockResolvedValueOnce({
+			...info,
+			streams: info.streams.map((stream: Record<string, unknown>) => ({
+				...stream,
+				codec_string: codec,
+			})),
+		});
+		const configure = vi.fn();
+		const decoder = new StreamingVideoDecoder();
+		class NonRetryDecoder {
+			state: CodecState = "unconfigured";
+			decodeQueueSize = 0;
+			constructor(private callbacks: { error: (error: DOMException) => void }) {}
+			configure() {
+				configure();
+				if (setupFailure) throw new DOMException("setup failed", errorName);
+				this.state = "configured";
+			}
+			decode() {
+				if (cancelled) decoder.cancel();
+				this.state = "closed";
+				this.callbacks.error(new DOMException("decode failed", errorName));
+			}
+			async flush() {}
+			close() {
+				this.state = "closed";
+			}
+		}
+		vi.stubGlobal("VideoDecoder", NonRetryDecoder);
+		await decoder.loadMetadata("/tmp/no-retry.mp4");
+		await expect(decoder.decodeAll(30, undefined, undefined, vi.fn())).rejects.toThrow(
+			setupFailure ? "setup failed" : "decode failed",
+		);
+		expect(configure).toHaveBeenCalledTimes(1);
+		decoder.destroy();
 	});
 
 	it.each([

@@ -502,15 +502,81 @@ describe("editorPreferences", () => {
 	});
 });
 
-
 describe("source-specific webcam metadata", () => {
 	it("does not copy imported source ranges into a reusable style preset", () => {
 		vi.stubGlobal("localStorage", createStorageMock());
-		saveEditorPresets([{ id: "webcam", name: "Webcam", createdAt: "2026-09-20T00:00:00Z", updatedAt: "2026-09-20T00:00:00Z", snapshot: {
-			...DEFAULT_EDITOR_PREFERENCES, cropRegion: DEFAULT_CROP_REGION, autoCaptionSettings: DEFAULT_AUTO_CAPTION_SETTINGS,
-			webcam: { ...DEFAULT_EDITOR_PREFERENCES.webcam, sourcePath: "/imported-webcam.mp4", visibleRanges: [{ startMs: 1000, endMs: 2000 }] },
-		} as never }]);
+		saveEditorPresets([
+			{
+				id: "webcam",
+				name: "Webcam",
+				createdAt: "2026-09-20T00:00:00Z",
+				updatedAt: "2026-09-20T00:00:00Z",
+				snapshot: {
+					...DEFAULT_EDITOR_PREFERENCES,
+					cropRegion: DEFAULT_CROP_REGION,
+					autoCaptionSettings: DEFAULT_AUTO_CAPTION_SETTINGS,
+					webcam: {
+						...DEFAULT_EDITOR_PREFERENCES.webcam,
+						sourcePath: "/imported-webcam.mp4",
+						visibleRanges: [{ startMs: 1000, endMs: 2000 }],
+					},
+				} as never,
+			},
+		]);
 		expect(loadEditorPresets()[0].snapshot.webcam).not.toHaveProperty("visibleRanges");
 		expect(loadEditorPresets()[0].snapshot.webcam).not.toHaveProperty("sourcePath");
+	});
+});
+
+describe("user preferences stay independent from projects and presets", () => {
+	afterEach(() => vi.unstubAllGlobals());
+	it("defaults Publish to Link and persists Local and export settings across reloads", () => {
+		vi.stubGlobal("localStorage", createStorageMock());
+		expect(loadEditorPreferences().publishDestination).toBe("link");
+		saveEditorPreferences({
+			publishDestination: "local",
+			exportQuality: "high",
+			mp4FrameRate: 60,
+			includeCaptionSidecar: true,
+		});
+		expect(loadEditorPreferences()).toMatchObject({
+			publishDestination: "local",
+			exportQuality: "high",
+			mp4FrameRate: 60,
+			includeCaptionSidecar: true,
+		});
+		saveEditorPreferences({ wallpaper: "#123456" });
+		expect(loadEditorPreferences().publishDestination).toBe("local");
+		expect(normalizeEditorPreferences({ publishDestination: null }).publishDestination).toBe(
+			"link",
+		);
+	});
+	it("drops export settings and machine paths from legacy presets", () => {
+		vi.stubGlobal("localStorage", createStorageMock());
+		const snapshot = {
+			...DEFAULT_EDITOR_PREFERENCES,
+			cropRegion: DEFAULT_CROP_REGION,
+			autoCaptionSettings: DEFAULT_AUTO_CAPTION_SETTINGS,
+			whisperModelPath: "/machine/model.bin",
+		};
+		saveEditorPresets([
+			{
+				id: "legacy",
+				name: "Legacy",
+				createdAt: "2026-01-01",
+				updatedAt: "2026-01-01",
+				snapshot,
+			},
+		]);
+		const loaded = loadEditorPresets()[0].snapshot;
+		expect(loaded.wallpaper).toBe(snapshot.wallpaper);
+		for (const key of [
+			"exportQuality",
+			"mp4FrameRate",
+			"publishDestination",
+			"whisperExecutablePath",
+			"whisperModelPath",
+		])
+			expect(loaded).not.toHaveProperty(key);
 	});
 });

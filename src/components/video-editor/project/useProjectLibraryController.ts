@@ -24,14 +24,9 @@ export function useProjectLibraryController({
 	appearance,
 	timeline,
 	videoPlaybackRef,
-	currentTime,
 	effectiveShowCursor,
 }: Input) {
-	const currentTimeRef = useRef(currentTime);
-	useEffect(() => {
-		currentTimeRef.current = currentTime;
-	}, [currentTime]);
-	const { setProjectLibraryEntries } = project;
+	const { setProjectLibraryEntries, setProjectLibraryLoading } = project;
 	const {
 		backgroundBlur,
 		borderRadius,
@@ -82,66 +77,97 @@ export function useProjectLibraryController({
 		speedRegions,
 		zoomRegions,
 	} = timeline;
+	const thumbnailUpdates = useRef(
+		new Map<string, { thumbnailPath: string; updatedAt: number }>(),
+	);
 	const refreshProjectLibrary = useCallback(async () => {
+		setProjectLibraryLoading(true);
 		try {
 			const result = await window.electronAPI.listProjectFiles();
 			if (!result.success) {
 				throw new Error(result.error || "Failed to load project library");
 			}
 
-			setProjectLibraryEntries(result.entries);
+			setProjectLibraryEntries(
+				result.entries.map((entry) => {
+					const ready = thumbnailUpdates.current.get(entry.path);
+					return ready?.updatedAt === entry.updatedAt
+						? { ...entry, thumbnailPath: ready.thumbnailPath }
+						: entry;
+				}),
+			);
+			const paths = new Set(result.entries.map((entry) => entry.path));
+			for (const key of thumbnailUpdates.current.keys()) {
+				if (!paths.has(key)) thumbnailUpdates.current.delete(key);
+			}
 		} catch (projectLibraryError) {
 			console.warn("Unable to refresh project library:", projectLibraryError);
+		} finally {
+			setProjectLibraryLoading(false);
 		}
 	}, []);
+
+	useEffect(
+		() =>
+			window.electronAPI.onProjectThumbnailReady?.((ready) => {
+				thumbnailUpdates.current.set(ready.path, ready);
+				setProjectLibraryEntries((entries) =>
+					entries.map((entry) =>
+						entry.path === ready.path && entry.updatedAt === ready.updatedAt
+							? { ...entry, thumbnailPath: ready.thumbnailPath }
+							: entry,
+					),
+				);
+			}),
+		[setProjectLibraryEntries],
+	);
 
 	const captureProjectThumbnail = useCallback(async () => {
 		const previewHandle = videoPlaybackRef.current;
 		const previewVideo = previewHandle?.video ?? null;
-		const previewCanvas = previewHandle?.app?.canvas ?? null;
 
-		if (previewHandle && previewVideo && previewVideo.paused) {
-			try {
-				await previewHandle.refreshFrame();
-				await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
-			} catch (thumbnailRefreshError) {
-				console.warn(
-					"Unable to refresh preview frame before thumbnail capture:",
-					thumbnailRefreshError,
-				);
-			}
-		}
-
-		const canvas = document.createElement("canvas");
 		const targetWidth = PROJECT_THUMBNAIL_WIDTH;
 		const targetHeight = PROJECT_THUMBNAIL_HEIGHT;
-		canvas.width = targetWidth;
-		canvas.height = targetHeight;
-
-		const context = canvas.getContext("2d");
-		if (!context) {
-			return null;
-		}
-		context.imageSmoothingEnabled = true;
-		context.imageSmoothingQuality = "high";
-		const editorBgHsl = getComputedStyle(document.documentElement)
-			.getPropertyValue("--editor-bg")
-			.trim();
-		context.fillStyle = editorBgHsl ? `hsl(${editorBgHsl})` : "#111113";
-		context.fillRect(0, 0, targetWidth, targetHeight);
 
 		const previewWidth = previewHandle?.containerRef.current?.clientWidth || 1920;
 		const previewHeight = previewHandle?.containerRef.current?.clientHeight || 1080;
-		const frameTimestampUs = Math.max(0, Math.round(currentTimeRef.current * 1_000_000));
+		const frameTimestampUs = 0;
 
 		if (previewVideo && previewVideo.videoWidth > 0 && previewVideo.videoHeight > 0) {
 			let videoFrame: VideoFrame | null = null;
 			let frameRenderer: FrameRenderer | null = null;
+			const thumbnailVideo = document.createElement("video");
 
 			try {
-				const sourceTimestampUs = previewVideo.currentTime * 1_000_000;
+				const firstClip = findPreviewClipAtTimelineTime(0, clipRegions);
+				const sourceSeconds = firstClip ? getClipSourceStartMs(firstClip) / 1000 : 0;
+				thumbnailVideo.muted = true;
+				thumbnailVideo.preload = "auto";
+				await new Promise<void>((resolve, reject) => {
+					const timeout = window.setTimeout(
+						() => finish(new Error("Thumbnail decode timed out")),
+						10000,
+					);
+					const finish = (error?: Error) => {
+						clearTimeout(timeout);
+						thumbnailVideo.onloadeddata = null;
+						thumbnailVideo.onseeked = null;
+						thumbnailVideo.onerror = null;
+						error ? reject(error) : resolve();
+					};
+					thumbnailVideo.onerror = () =>
+						finish(new Error("Thumbnail source unavailable"));
+					thumbnailVideo.onloadeddata = () => {
+						if (sourceSeconds > 0) {
+							thumbnailVideo.onseeked = () => finish();
+							thumbnailVideo.currentTime = sourceSeconds;
+						} else finish();
+					};
+					thumbnailVideo.src = previewVideo.currentSrc || previewVideo.src;
+				});
+				const sourceTimestampUs = sourceSeconds * 1_000_000;
 				if (findPreviewClipAtTimelineTime(frameTimestampUs / 1000, clipRegions)) {
-					videoFrame = new VideoFrame(previewVideo, { timestamp: sourceTimestampUs });
+					videoFrame = new VideoFrame(thumbnailVideo, { timestamp: sourceTimestampUs });
 				}
 				frameRenderer = new FrameRenderer({
 					timelineEffects: true,
@@ -238,46 +264,12 @@ export function useProjectLibraryController({
 			} finally {
 				videoFrame?.close();
 				frameRenderer?.destroy();
+				thumbnailVideo.removeAttribute("src");
+				thumbnailVideo.load();
 			}
 		}
 
-		const drawableSource =
-			previewCanvas && previewCanvas.width > 0 && previewCanvas.height > 0
-				? previewCanvas
-				: previewVideo && previewVideo.videoWidth > 0 && previewVideo.videoHeight > 0
-					? previewVideo
-					: null;
-
-		if (!drawableSource) {
-			return null;
-		}
-
-		const sourceWidth =
-			drawableSource instanceof HTMLVideoElement
-				? drawableSource.videoWidth
-				: drawableSource.width;
-		const sourceHeight =
-			drawableSource instanceof HTMLVideoElement
-				? drawableSource.videoHeight
-				: drawableSource.height;
-
-		if (sourceWidth <= 0 || sourceHeight <= 0) {
-			return null;
-		}
-
-		const scale = Math.min(targetWidth / sourceWidth, targetHeight / sourceHeight);
-		const drawWidth = Math.round(sourceWidth * scale);
-		const drawHeight = Math.round(sourceHeight * scale);
-		const offsetX = Math.round((targetWidth - drawWidth) / 2);
-		const offsetY = Math.round((targetHeight - drawHeight) / 2);
-
-		try {
-			context.drawImage(drawableSource, offsetX, offsetY, drawWidth, drawHeight);
-			return canvas.toDataURL("image/png");
-		} catch (thumbnailError) {
-			console.warn("Unable to capture project thumbnail:", thumbnailError);
-			return null;
-		}
+		return null;
 	}, [
 		annotationRegions,
 		autoCaptionSettings,

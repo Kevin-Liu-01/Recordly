@@ -91,7 +91,7 @@ export function createAuthCallbackController({ isDev, focusApp }: AuthCallbackOp
 			dispatch(appUrl.href);
 			response.writeHead(200, callbackHeaders("text/html; charset=utf-8"));
 			response.end(
-				'<!doctype html><meta charset="utf-8"><title>Signed into Recordly</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#08090a;color:#ededef;font:16px "Helvetica Neue",Helvetica,Arial,sans-serif}.card{max-width:420px;padding:32px;text-align:center}h1{font-size:22px;font-weight:500}p{color:#8b8b8e;line-height:1.6}</style><main class="card"><h1>Signed into Recordly</h1><p>You can close this tab and return to the app.</p></main>',
+				'<!doctype html><meta charset="utf-8"><title>Return to Recordly</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#08090a;color:#ededef;font:16px "Helvetica Neue",Helvetica,Arial,sans-serif}.card{max-width:420px;padding:32px;text-align:center}h1{font-size:22px;font-weight:500}p{color:#8b8b8e;line-height:1.6}</style><main class="card"><h1>Return to Recordly</h1><p>Your sign-in link has been received. Return to the app to finish signing in.</p></main>',
 			);
 		});
 		server.on("error", (error) => {

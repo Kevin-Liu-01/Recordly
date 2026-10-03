@@ -6,7 +6,7 @@ import { createProjectData, type EditorProjectData } from "../projectPersistence
 import type { useProjectState } from "../state/useProjectState";
 import { cloneStructured, getErrorMessage } from "../videoEditorUtils";
 
-const PROJECT_AUTOSAVE_DELAY_MS = 750;
+const PROJECT_AUTOSAVE_DELAY_MS = 500;
 
 type SaveProjectOptions = {
 	silent?: boolean;
@@ -184,12 +184,7 @@ export function useProjectSaveActions({
 		[saveProject],
 	);
 	useEffect(() => {
-		if (
-			project.projectBrowserOpen ||
-			project.loading ||
-			!currentSourcePath ||
-			!hasUnsavedChanges
-		) {
+		if (project.loading || !currentSourcePath || !hasUnsavedChanges) {
 			clearPendingAutosave();
 			return;
 		}
@@ -203,14 +198,7 @@ export function useProjectSaveActions({
 			});
 		}, PROJECT_AUTOSAVE_DELAY_MS);
 		return clearPendingAutosave;
-	}, [
-		clearPendingAutosave,
-		hasUnsavedChanges,
-		saveProject,
-		project.projectBrowserOpen,
-		project.loading,
-		currentSourcePath,
-	]);
+	}, [clearPendingAutosave, hasUnsavedChanges, saveProject, project.loading, currentSourcePath]);
 	useEffect(() => clearPendingAutosave, [clearPendingAutosave]);
 
 	const saveProjectWithName = useCallback(

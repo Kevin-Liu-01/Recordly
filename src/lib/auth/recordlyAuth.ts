@@ -42,6 +42,15 @@ export async function signInWithEmail(email: string, password: string): Promise<
 	return data.user;
 }
 
+export async function sendSignInLink(email: string): Promise<void> {
+	const client = requireAuth();
+	const { error } = await client.auth.signInWithOtp({
+		email,
+		options: { emailRedirectTo: callbackUrl, shouldCreateUser: true },
+	});
+	if (error) throw error;
+}
+
 export async function sendPasswordReset(email: string): Promise<void> {
 	const client = requireAuth();
 	const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: callbackUrl });
@@ -54,7 +63,7 @@ async function openAuthUrl(url: string | null) {
 	if (!result.success) throw new Error(result.error || "Could not open the sign-in page.");
 }
 
-export async function signInWithSocial(provider: "google" | "azure"): Promise<void> {
+export async function signInWithSocial(provider: "google" | "azure" | "github"): Promise<void> {
 	const client = requireAuth();
 	const { data, error } = await client.auth.signInWithOAuth({
 		provider: provider as Provider,
@@ -85,7 +94,9 @@ async function exchangeAuthCallback(url: string): Promise<void> {
 	const providerError = params.get("error_description") || params.get("error");
 	if (providerError) throw new Error(providerError);
 	const code = params.get("code");
-	if (!code) throw new Error("The sign-in callback did not include an authorization code.");
+	if (!code) {
+		throw new Error("Request a new sign-in link from Recordly, then open it on this computer.");
+	}
 	const client = requireAuth();
 	const { error } = await client.auth.exchangeCodeForSession(code);
 	if (error) throw error;

@@ -1,7 +1,7 @@
 import { type RefObject, useCallback } from "react";
 import { toast } from "@/components/ui/toast";
 import type { ExportFormat, ExportSettings } from "@/lib/exporter";
-import { resolveExportStartSettings } from "../exportStartSettings";
+import { resolveExportStartSettings, resolveShareExportSettings } from "../exportStartSettings";
 import type { VideoPlaybackRef } from "../VideoPlayback";
 import type { useExportSession } from "./useExportSession";
 import type { useExportSettings } from "./useExportSettings";
@@ -97,8 +97,8 @@ export function useExportDialogActions({
 		const resolvedSettings = resolveCurrentSettings("mp4");
 		if (!resolvedSettings) return undefined;
 		session.setExportError(null);
-		session.setShowExportDropdown(false);
-		return handleExport(resolvedSettings, { destination: "share" });
+		session.setShowExportDropdown(true);
+		return handleExport(resolveShareExportSettings(resolvedSettings), { destination: "share" });
 	}, [resolveCurrentSettings, session, handleExport]);
 
 	const handleCancelExport = useCallback(() => {

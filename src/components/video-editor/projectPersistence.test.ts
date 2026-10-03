@@ -267,3 +267,28 @@ it("discards inverted saved source bounds while preserving the in-point", () => 
 	expect(editor.clipRegions[0].sourceMinMs).toBeUndefined();
 	expect(editor.clipRegions[0].sourceMaxMs).toBeUndefined();
 });
+
+it("ignores legacy export preferences when opening and resaving a project", async () => {
+	const { createProjectData } = await import("./projectPersistence");
+	const legacyEditor = {
+		wallpaper: "#112233",
+		exportQuality: "high",
+		exportFormat: "gif",
+		mp4FrameRate: 60,
+		publishDestination: "local",
+		whisperModelPath: "/machine/model.bin",
+	};
+	const loaded = normalizeProjectEditor(legacyEditor);
+	expect(loaded.wallpaper).toBe("#112233");
+	for (const key of [
+		"exportQuality",
+		"exportFormat",
+		"mp4FrameRate",
+		"publishDestination",
+		"whisperModelPath",
+	]) {
+		expect(loaded).not.toHaveProperty(key);
+		expect(createProjectData("/clip.mp4", legacyEditor).editor).not.toHaveProperty(key);
+	}
+	expect(legacyEditor.exportQuality).toBe("high");
+});

@@ -1,4 +1,4 @@
-import { MagnifyingGlass, UploadSimple } from "@/components/ui/icons";
+import { MagnifyingGlass, UploadSimple, ArrowClockwise } from "@/components/ui/icons";
 import { type CSSProperties } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -15,10 +15,12 @@ export function DashboardToolbar({
 	setQuery,
 	run,
 	busy,
+	actionLabel = "Import",
+	action = "import",
 }: Pick<
 	DashboardProps & DashboardModel,
 	"onImportFile" | "query" | "setQuery" | "run" | "busy" | "isRaw"
->) {
+> & { actionLabel?: string; action?: "import" | "refresh" }) {
 	return (
 		<>
 			<header
@@ -45,8 +47,12 @@ export function DashboardToolbar({
 						onClick={() => void run(onImportFile)}
 						className="h-10 shrink-0 gap-2 text-[13px]"
 					>
-						<UploadSimple className="size-4" />
-						Import
+						{action === "refresh" ? (
+							<ArrowClockwise className="size-4" />
+						) : (
+							<UploadSimple className="size-4" />
+						)}
+						{actionLabel}
 					</Button>
 				</div>
 			</header>
