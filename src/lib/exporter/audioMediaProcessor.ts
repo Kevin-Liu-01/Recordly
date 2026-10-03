@@ -1,10 +1,10 @@
 import { WebDemuxer } from "web-demuxer";
-import { AudioTimelineProcessor } from "./audioTimelineProcessor";
 import {
 	countPrimingFrames,
 	DECODE_BACKPRESSURE_LIMIT,
 	OFFLINE_AUDIO_SAMPLE_RATE,
 } from "./audioProcessorShared";
+import { AudioTimelineProcessor } from "./audioTimelineProcessor";
 import { resolveMediaElementSource } from "./localMediaSource";
 
 export class AudioMediaProcessor extends AudioTimelineProcessor {
