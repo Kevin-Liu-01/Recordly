@@ -242,6 +242,19 @@ interface Window {
 		openSourceSelector: () => Promise<void>;
 		selectSource: (source: ProcessedDesktopSource) => Promise<ProcessedDesktopSource>;
 		showSourceHighlight: (source: ProcessedDesktopSource) => Promise<{ success: boolean }>;
+		/** Opens the area overlay on every display and resolves when it closes. */
+		selectArea: () => Promise<{
+			success: boolean;
+			canceled?: boolean;
+			record?: boolean;
+			source?: ProcessedDesktopSource;
+			message?: string;
+		}>;
+		completeAreaSelection: (selection: AreaSelection | null) => Promise<void>;
+		getAreaSelectorContext: (displayId: number) => Promise<{
+			displayBounds: CaptureArea | null;
+			lastArea: CaptureArea | null;
+		}>;
 		getSelectedSource: () => Promise<ProcessedDesktopSource | null>;
 		onSelectedSourceChanged: (
 			callback: (source: ProcessedDesktopSource | null) => void,
@@ -1022,6 +1035,20 @@ interface Window {
 	};
 }
 
+/** A rectangle in global display points (top-left origin). */
+interface CaptureArea {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+interface AreaSelection extends CaptureArea {
+	displayId: number;
+	/** Start recording right away instead of only selecting the area. */
+	record: boolean;
+}
+
 interface ProcessedDesktopSource {
 	id: string;
 	name: string;
@@ -1029,9 +1056,11 @@ interface ProcessedDesktopSource {
 	thumbnail: string | null;
 	appIcon: string | null;
 	originalName?: string;
-	sourceType?: "screen" | "window";
+	sourceType?: "screen" | "window" | "area";
 	appName?: string;
 	windowTitle?: string;
+	/** For area sources, the recorded part of the display. */
+	area?: CaptureArea;
 }
 
 interface CursorTelemetryPoint {

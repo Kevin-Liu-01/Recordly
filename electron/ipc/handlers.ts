@@ -1,5 +1,6 @@
 import { BrowserWindow } from "electron";
 import { registerAnnouncementHandlers } from "./register/announcements";
+import { registerAreaHandlers } from "./register/area";
 import { registerAssetHandlers } from "./register/assets";
 import { registerCaptionHandlers } from "./register/captions";
 import { registerCloudShareHandlers } from "./register/cloudShare";
@@ -64,6 +65,7 @@ export function registerIpcHandlers(
 		createSourceSelectorWindow,
 		getSourceSelectorWindow,
 	});
+	registerAreaHandlers();
 	registerRecordingHandlers(onRecordingStateChange);
 	registerPermissionHandlers();
 	registerAnnouncementHandlers();

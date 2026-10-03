@@ -19,6 +19,7 @@ const UpdateToastWindow = lazy(() =>
 	})),
 );
 const EditorWindow = lazy(() => import("./components/video-editor/EditorWindow"));
+const AreaSelector = lazy(() => import("./components/area/AreaSelector"));
 
 export default function App() {
 	const [windowType] = useState(
@@ -34,7 +35,8 @@ export default function App() {
 			windowType === "hud-overlay" ||
 			windowType === "source-selector" ||
 			windowType === "countdown" ||
-			windowType === "update-toast"
+			windowType === "update-toast" ||
+			windowType === "area-selector"
 		) {
 			document.body.style.background = "transparent";
 			document.documentElement.style.background = "transparent";
@@ -76,6 +78,9 @@ export default function App() {
 			break;
 		case "editor":
 			content = <EditorWindow />;
+			break;
+		case "area-selector":
+			content = <AreaSelector />;
 			break;
 		default:
 			content = (

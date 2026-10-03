@@ -1,11 +1,28 @@
+/** A rectangle in global display points (top-left origin). */
+export type CaptureArea = {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+};
+
 export type SelectedSource = {
 	id?: string;
 	name: string;
 	display_id?: string;
-	sourceType?: "screen" | "window";
+	sourceType?: "screen" | "window" | "area";
 	appName?: string;
 	windowTitle?: string;
+	/** For area sources, the recorded part of the display. */
+	area?: CaptureArea;
 	[key: string]: unknown;
+};
+
+/** What the area selector reports when the user confirms a selection. */
+export type AreaSelectionResult = CaptureArea & {
+	displayId: number;
+	/** Start recording right away instead of only selecting the area. */
+	record: boolean;
 };
 
 export type NativeMacRecordingOptions = {
