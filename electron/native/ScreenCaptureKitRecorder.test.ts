@@ -34,20 +34,58 @@ describe("ScreenCaptureKitRecorder finalization coordination", () => {
 	});
 });
 
-describe("ScreenCaptureKitRecorder resume timing", () => {
-	it("anchors warm-start resume timing to video before accepting audio", () => {
+describe("ScreenCaptureKitRecorder timeline", () => {
+	it("resumes on the host clock so speech after the countdown is kept", () => {
+		expect(recorderSource).toContain("func resume(atHostTime hostTime: CMTime)");
 		expect(recorderSource).toContain(
-			"guard outputType == .screen, let pauseStartedHostTime else",
+			"self.clock.resume(atHostTime: RecordingClock.hostTime())",
 		);
+		expect(recorderSource).not.toContain("pendingResumeAdjustment");
 	});
 
-	it("drops non-monotonic video and audio samples", () => {
+	it("drops non-monotonic video frames", () => {
 		expect(recorderSource).toContain(
 			"CMTimeCompare(presentationTime, lastVideoPresentationTime) <= 0",
 		);
+	});
+
+	it("holds the last frame until the stop instead of ending at the last change", () => {
+		expect(recorderSource).toContain("private func appendStillFrameIfIdle()");
+		expect(recorderSource).toContain("finalEndTime - tailDuration");
+		expect(recorderSource).toContain("assetWriter.endSession(atSourceTime: finalEndTime)");
+	});
+
+	it("writes the frame that arrived before the writer was ready", () => {
+		expect(recorderSource).toContain("pendingFirstFrame = sampleBuffer");
+		expect(recorderSource).toContain("self.appendPendingFirstFrame(attemptsRemaining:");
+	});
+});
+
+describe("ScreenCaptureKitRecorder audio", () => {
+	const track = recorderSource.slice(
+		recorderSource.indexOf("final class AudioTimelineTrack"),
+		recorderSource.indexOf("final class ScreenCaptureRecorder"),
+	);
+
+	it("delivers audio on its own queue, never behind video work", () => {
 		expect(recorderSource).toContain(
-			"CMTimeCompare(presentationTime, lastPresentationTime) > 0",
+			"try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: audioQueue)",
 		);
+		expect(recorderSource).toContain(
+			"try stream.addStreamOutput(self, type: microphoneOutputType, sampleHandlerQueue: audioQueue)",
+		);
+	});
+
+	it("never drops a buffer because an encoder is busy", () => {
+		expect(track).toContain("try sidecar.write(from: buffer)");
+		expect(track).toContain("pendingInline.append(sampleBuffer)");
+		expect(track).not.toMatch(/isReadyForMoreMediaData else \{\s*return/);
+	});
+
+	it("fills delivery gaps with silence and trims overlap", () => {
+		expect(track).toContain("writeSilence(frames: limited(drift))");
+		expect(track).toContain("skipFrames = min(-drift, Int64(converted.frameLength))");
+		expect(recorderSource).toContain("track.finish(padTo: endFrame)");
 	});
 });
 
@@ -73,17 +111,26 @@ describe("ScreenCaptureKitRecorder colour metadata", () => {
 	});
 });
 
-describe("ScreenCaptureKitRecorder window capture", () => {
-	it("records the display and crops it to the selected window bounds", () => {
-		expect(recorderSource).not.toContain("streamConfig.sourceRect");
+describe("ScreenCaptureKitRecorder window and area capture", () => {
+	it("crops the display natively to the selected window bounds", () => {
 		expect(recorderSource).not.toContain("desktopIndependentWindow");
+		expect(recorderSource).not.toContain("CIContext");
 		expect(recorderSource).toContain(
 			"visibleFrame = CGRect(x: x, y: y, width: width, height: height)",
 		);
 		expect(recorderSource).toContain(
-			"let captureRect = visibleFrame.intersection(display.frame)",
+			"let captureRect = requestedFrame.intersection(display.frame)",
 		);
-		expect(recorderSource).toContain("appendCroppedVideoFrame(sampleBuffer");
+		expect(recorderSource).toContain(
+			"streamConfig.sourceRect = Self.sourceRect(for: captureRect, on: display)",
+		);
+	});
+
+	it("records a fixed area of a display", () => {
+		expect(recorderSource).toContain("let regionX: Double?");
+		expect(recorderSource).toContain(
+			"requestedFrame = CGRect(x: x, y: y, width: width, height: height)",
+		);
 	});
 
 	it("refreshes the crop and capture display while the window moves or resizes", () => {
@@ -91,22 +138,31 @@ describe("ScreenCaptureKitRecorder window capture", () => {
 			"guard let display = Self.captureDisplay(for: window.frame",
 		);
 		expect(recorderSource).toContain("try await activeStream.updateContentFilter(filter)");
-		expect(recorderSource).toContain("self.windowCropRect = cropRect");
+		expect(recorderSource).toContain(
+			"try await activeStream.updateConfiguration(streamConfiguration)",
+		);
 	});
 });
 
-
 describe("ScreenCaptureKitRecorder first frame timing", () => {
-	const callback = recorderSource.slice(recorderSource.indexOf("func stream(_ stream:"), recorderSource.indexOf("func stream(_ stream:") + 5000);
+	const callback = recorderSource.slice(
+		recorderSource.indexOf("func stream(_ stream:"),
+		recorderSource.indexOf("func stream(_ stream:") + 5000,
+	);
+	const appendFrame = recorderSource.slice(
+		recorderSource.indexOf("private func appendVideoFrame"),
+		recorderSource.indexOf("private func appendPendingFirstFrame"),
+	);
 	it("validates a complete frame and writer readiness before setting time zero", () => {
-		const clock = callback.indexOf("adjustedPresentationTime(for:");
+		const clock = callback.indexOf("clock.videoTime(for:");
 		expect(clock).toBeGreaterThan(callback.indexOf("status == .complete"));
 		expect(clock).toBeGreaterThan(callback.indexOf("videoInput.isReadyForMoreMediaData"));
 	});
 	it("resets the origin after a rejected first frame and gates audio on accepted video", () => {
-		expect(callback).toMatch(/else if frameCount == 0\s*\{[^}]*firstSampleTime = \.zero/);
-		const audioGuard = callback.indexOf("guard frameCount > 0,");
-		expect(audioGuard).toBeGreaterThan(0);
-		expect(audioGuard).toBeLessThan(callback.indexOf("if outputType == .audio"));
+		expect(appendFrame).toMatch(/else if frameCount == 0\s*\{[^}]*clock\.clearOrigin\(\)/);
+		expect(callback).toContain("guard let presentationTime = clock.audioTime(for:");
+		expect(recorderSource).toContain(
+			"guard origin.isValid, pauseStartedAt == nil else { return nil }",
+		);
 	});
 });
