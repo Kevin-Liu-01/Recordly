@@ -122,8 +122,15 @@ describe("ScreenCaptureKitRecorder window and area capture", () => {
 			"let captureRect = requestedFrame.intersection(display.frame)",
 		);
 		expect(recorderSource).toContain(
-			"streamConfig.sourceRect = Self.sourceRect(for: captureRect, on: display)",
+			"let sourceRect = Self.sourceRect(for: captureRect, on: display, scale: scaleFactor)",
 		);
+		expect(recorderSource).toContain("streamConfig.sourceRect = sourceRect");
+	});
+
+	it("records whole screen pixels at a bitrate sized for the frame rate", () => {
+		expect(recorderSource).toMatch(/let width = max\(2, Int\(.*\) & ~1\)/);
+		expect(recorderSource).toContain("averageBitRate * requestedFPS / assistantFPS");
+		expect(recorderSource).toContain("compression[AVVideoExpectedSourceFrameRateKey] = requestedFPS");
 	});
 
 	it("records a fixed area of a display", () => {

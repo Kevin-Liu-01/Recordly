@@ -68,6 +68,16 @@ describe("normalizeCapturePick", () => {
 		});
 	});
 
+	it("trims an area to an even size so it maps onto whole screen pixels", () => {
+		expect(
+			normalizeCapturePick(
+				{ kind: "area", x: 10, y: 20, width: 401, height: 301, displayId: 1 },
+				displays,
+				windows,
+			),
+		).toMatchObject({ x: 10, y: 20, width: 400, height: 300 });
+	});
+
 	it("rejects areas that are too small, unknown displays and malformed input", () => {
 		const area = { kind: "area", x: 0, y: 0, width: 20, height: 400, displayId: 1 };
 		expect(normalizeCapturePick(area, displays, windows)).toBeNull();

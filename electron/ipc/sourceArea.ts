@@ -56,7 +56,11 @@ export function normalizeCapturePick(
 	const top = Math.max(display.bounds.y, Math.round(y));
 	const right = Math.min(display.bounds.x + display.bounds.width, Math.round(x + width));
 	const bottom = Math.min(display.bounds.y + display.bounds.height, Math.round(y + height));
-	if (right - left < MIN_CAPTURE_AREA_SIZE || bottom - top < MIN_CAPTURE_AREA_SIZE) {
+	// Whole, even sizes map the area onto screen pixels one to one at any display
+	// scale, so the recording is never resampled.
+	const areaWidth = right - left - ((right - left) % 2);
+	const areaHeight = bottom - top - ((bottom - top) % 2);
+	if (areaWidth < MIN_CAPTURE_AREA_SIZE || areaHeight < MIN_CAPTURE_AREA_SIZE) {
 		return null;
 	}
 
@@ -64,8 +68,8 @@ export function normalizeCapturePick(
 		kind: "area",
 		x: left,
 		y: top,
-		width: right - left,
-		height: bottom - top,
+		width: areaWidth,
+		height: areaHeight,
 		displayId: display.id,
 		record,
 	};
