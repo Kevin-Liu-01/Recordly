@@ -43,6 +43,12 @@ describe("ScreenCaptureKitRecorder resume timing", () => {
 		expect(recorderSource).not.toContain("pendingResumeAdjustment");
 	});
 
+	it("holds the last frame until the stop instead of ending at the last change", () => {
+		expect(recorderSource).toContain("private func appendStillFrameIfIdle()");
+		expect(recorderSource).toContain("endTime - tailDuration");
+		expect(recorderSource).toContain("assetWriter.endSession(atSourceTime: endTime)");
+	});
+
 	it("drops non-monotonic video frames", () => {
 		expect(recorderSource).toContain(
 			"CMTimeCompare(presentationTime, lastVideoPresentationTime) <= 0",
