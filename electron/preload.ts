@@ -532,14 +532,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	showSourceHighlight: (source: ProcessedDesktopSource) => {
 		return ipcRenderer.invoke("show-source-highlight", source);
 	},
-	selectArea: () => {
-		return ipcRenderer.invoke("select-area");
+	pickCaptureTarget: () => {
+		return ipcRenderer.invoke("pick-capture-target");
 	},
-	completeAreaSelection: (selection: AreaSelection | null) => {
-		return ipcRenderer.invoke("complete-area-selection", selection);
+	completeCapturePick: (pick: CapturePick | null) => {
+		return ipcRenderer.invoke("complete-capture-pick", pick);
 	},
-	getAreaSelectorContext: (displayId: number) => {
-		return ipcRenderer.invoke("get-area-selector-context", displayId);
+	getCapturePickerContext: (displayId: number) => {
+		return ipcRenderer.invoke("get-capture-picker-context", displayId);
 	},
 	getSelectedSource: () => {
 		return ipcRenderer.invoke("get-selected-source");

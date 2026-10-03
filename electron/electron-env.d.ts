@@ -242,18 +242,21 @@ interface Window {
 		openSourceSelector: () => Promise<void>;
 		selectSource: (source: ProcessedDesktopSource) => Promise<ProcessedDesktopSource>;
 		showSourceHighlight: (source: ProcessedDesktopSource) => Promise<{ success: boolean }>;
-		/** Opens the area overlay on every display and resolves when it closes. */
-		selectArea: () => Promise<{
+		/** Opens the capture picker on every display and resolves when it closes. */
+		pickCaptureTarget: () => Promise<{
 			success: boolean;
 			canceled?: boolean;
 			record?: boolean;
 			source?: ProcessedDesktopSource;
 			message?: string;
 		}>;
-		completeAreaSelection: (selection: AreaSelection | null) => Promise<void>;
-		getAreaSelectorContext: (displayId: number) => Promise<{
+		completeCapturePick: (pick: CapturePick | null) => Promise<void>;
+		getCapturePickerContext: (displayId: number) => Promise<{
 			displayBounds: CaptureArea | null;
 			lastArea: CaptureArea | null;
+			/** On-screen windows on this display, front to back. */
+			windows: CapturePickerWindow[];
+			cursor: { x: number; y: number } | null;
 		}>;
 		getSelectedSource: () => Promise<ProcessedDesktopSource | null>;
 		onSelectedSourceChanged: (
@@ -1043,11 +1046,23 @@ interface CaptureArea {
 	height: number;
 }
 
-interface AreaSelection extends CaptureArea {
-	displayId: number;
-	/** Start recording right away instead of only selecting the area. */
-	record: boolean;
+/** A window the capture picker can highlight, framed in global display points. */
+interface CapturePickerWindow extends CaptureArea {
+	/** The window's source id, `window:<windowId>:0`. */
+	id: string;
+	appName: string;
+	title: string;
+	display_id?: string;
 }
+
+/**
+ * What the capture picker reports when the user confirms: an area they drew, a
+ * window they clicked, or a whole screen. `record` starts recording right away.
+ */
+type CapturePick =
+	| (CaptureArea & { kind: "area"; displayId: number; record: boolean })
+	| { kind: "window"; windowId: string; displayId: number; record: boolean }
+	| { kind: "screen"; displayId: number; record: boolean };
 
 interface ProcessedDesktopSource {
 	id: string;

@@ -58,3 +58,16 @@ export function resizeAreaRect(
 		bounds,
 	);
 }
+
+export function rectContains(rect: AreaRect, x: number, y: number): boolean {
+	return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
+}
+
+/** The frontmost entry under the point, from a list ordered front to back. */
+export function frontmostAt<T extends { rect: AreaRect }>(
+	entries: T[],
+	x: number,
+	y: number,
+): T | null {
+	return entries.find((entry) => rectContains(entry.rect, x, y)) ?? null;
+}

@@ -18,12 +18,25 @@ export type SelectedSource = {
 	[key: string]: unknown;
 };
 
-/** What the area selector reports when the user confirms a selection. */
-export type AreaSelectionResult = CaptureArea & {
-	displayId: number;
-	/** Start recording right away instead of only selecting the area. */
-	record: boolean;
+/** A window the capture picker can highlight, framed in global display points. */
+export type CapturePickerWindow = CaptureArea & {
+	/** The window's source id, `window:<windowId>:0`. */
+	id: string;
+	appName: string;
+	title: string;
+	display_id?: string;
 };
+
+/**
+ * What the capture picker reports when the user confirms: an area they drew, a
+ * window they clicked, or a whole screen. `record` starts recording right away.
+ */
+export type CapturePick =
+	| (CaptureArea & { kind: "area"; displayId: number; record: boolean })
+	| { kind: "window"; windowId: string; displayId: number; record: boolean }
+	| { kind: "screen"; displayId: number; record: boolean };
+
+export type AreaCapturePick = Extract<CapturePick, { kind: "area" }>;
 
 export type NativeMacRecordingOptions = {
 	capturesSystemAudio?: boolean;
@@ -136,6 +149,8 @@ export type NativeMacWindowSource = {
 	y?: number;
 	width?: number;
 	height?: number;
+	/** Process that owns the window. */
+	ownerPid?: number;
 };
 
 export type HookEventName = "mousedown" | "mouseup" | "mousemove";

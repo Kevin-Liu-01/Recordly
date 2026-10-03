@@ -28,8 +28,8 @@ interface SourceSelectorProps {
 	loading?: boolean;
 	/** Callback when a source is selected */
 	onSourceSelect?: (source: DesktopSource) => void;
-	/** Opens the overlay for drawing an area to record; omitted where unsupported */
-	onSelectArea?: () => void;
+	/** Opens the on-screen picker for an area or window; omitted where unsupported */
+	onPickOnScreen?: () => void;
 	/** Callback to fetch sources */
 	onFetchSources?: () => Promise<void>;
 	/** Whether the popover is open */
@@ -49,7 +49,7 @@ export const SourceSelectorContent = ({
 	selectedSource = "Screen",
 	loading = false,
 	onSourceSelect = () => undefined,
-	onSelectArea,
+	onPickOnScreen,
 }: Pick<
 	SourceSelectorProps,
 	| "screenSources"
@@ -57,7 +57,7 @@ export const SourceSelectorContent = ({
 	| "selectedSource"
 	| "loading"
 	| "onSourceSelect"
-	| "onSelectArea"
+	| "onPickOnScreen"
 >) => {
 	const t = useScopedT("launch");
 	const renderSourceItem = (source: DesktopSource, index: number) => {
@@ -109,7 +109,7 @@ export const SourceSelectorContent = ({
 	};
 
 	const hasAnySources = screenSources.length > 0 || windowSources.length > 0;
-	const areaItem = onSelectArea ? (
+	const pickOnScreenItem = onPickOnScreen ? (
 		<div className="p-2 pb-0">
 			<ToggleButton
 				variant="ghost"
@@ -118,19 +118,19 @@ export const SourceSelectorContent = ({
 					"source-selector-item group min-h-[46px] w-full px-3 py-2.5 text-left flex items-center justify-start gap-3",
 					selectedSource.startsWith("Area ") && "source-selector-item-selected",
 				)}
-				onClick={onSelectArea}
+				onClick={onPickOnScreen}
 			>
 				<div className="source-selector-thumb-fallback w-12 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0">
 					<Crop className="w-5 h-5 source-selector-muted" />
 				</div>
 				<div className="flex-1 min-w-0 flex flex-col items-start text-left">
 					<div className="text-sm font-medium source-selector-text w-full">
-						{t("recording.selectArea", "Select area")}
+						{t("recording.pickOnScreen", "Select area or window")}
 					</div>
 					<div className="text-xs source-selector-subtle truncate w-full text-left">
 						{selectedSource.startsWith("Area ")
 							? selectedSource
-							: t("recording.selectAreaHint", "Drag over any part of a screen")}
+							: t("recording.pickOnScreenHint", "Drag an area, or click a window")}
 					</div>
 				</div>
 			</ToggleButton>
@@ -140,7 +140,7 @@ export const SourceSelectorContent = ({
 	if (loading && !hasAnySources) {
 		return (
 			<>
-				{areaItem}
+				{pickOnScreenItem}
 				<div className="flex items-center justify-center py-8">
 					<div className="animate-spin rounded-full h-5 w-5 border-b-2 source-selector-accent-border" />
 				</div>
@@ -150,7 +150,7 @@ export const SourceSelectorContent = ({
 
 	return (
 		<>
-			{areaItem}
+			{pickOnScreenItem}
 			<div className="max-h-[320px] overflow-y-auto overflow-x-hidden p-2 source-selector-scroll">
 				{hasAnySources ? (
 					<>
@@ -207,7 +207,7 @@ export const SourceSelector = React.memo(function SourceSelector({
 	selectedSource: propsSelectedSource,
 	loading: propsLoading,
 	onSourceSelect: propsOnSourceSelect,
-	onSelectArea,
+	onPickOnScreen,
 	onFetchSources: propsOnFetchSources,
 	open: propsOpen,
 	onOpenChange: propsOnOpenChange,
@@ -382,7 +382,7 @@ export const SourceSelector = React.memo(function SourceSelector({
 					selectedSource={selectedSource}
 					loading={loading}
 					onSourceSelect={onSourceSelect}
-					onSelectArea={onSelectArea}
+					onPickOnScreen={onPickOnScreen}
 				/>
 			</PopoverContent>
 		</Popover>

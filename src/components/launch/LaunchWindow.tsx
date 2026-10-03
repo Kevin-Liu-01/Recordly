@@ -186,8 +186,8 @@ function LaunchWindowContent() {
 		ease: [0.22, 1, 0.36, 1] as const,
 	};
 
-	const handleSelectArea = async () => {
-		const result = await window.electronAPI.selectArea();
+	const handlePickOnScreen = async () => {
+		const result = await window.electronAPI.pickCaptureTarget();
 		if (!result.success) return;
 		if (result.record) {
 			toggleRecording();
@@ -234,7 +234,7 @@ function LaunchWindowContent() {
 					<SourcePopover
 						selectedSource={selectedSource}
 						onSourceSelect={handleSourceSelect}
-						onSelectArea={platform === "darwin" ? handleSelectArea : undefined}
+						onPickOnScreen={platform === "darwin" ? handlePickOnScreen : undefined}
 						onOpen={beginInteractiveHudAction}
 						trigger={
 							<Button

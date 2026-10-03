@@ -42,7 +42,7 @@ let hudOverlayRecordingActive = false;
 let hudCaptureStarting = false;
 let hudOverlayWebcamPreviewVisible = false;
 let countdownWindow: BrowserWindow | null = null;
-let areaSelectorWindows: BrowserWindow[] = [];
+let capturePickerWindows: BrowserWindow[] = [];
 let areaRecordingBorderWindow: BrowserWindow | null = null;
 let updateToastWindow: BrowserWindow | null = null;
 let hudWasVisibleBeforeUpdateToast = false;
@@ -1176,15 +1176,15 @@ export function closeCountdownWindow(): void {
 }
 
 /**
- * Covers every display with a transparent overlay for drawing the area to record.
- * Each overlay renders the `area-selector` window and reports back over IPC.
+ * Covers every display with a transparent overlay for picking what to record.
+ * Each overlay renders the `capture-picker` window and reports back over IPC.
  */
-export function createAreaSelectorWindows(onClosed: () => void): BrowserWindow[] {
-	closeAreaSelectorWindows();
+export function createCapturePickerWindows(onClosed: () => void): BrowserWindow[] {
+	closeCapturePickerWindows();
 	const cursorDisplayId = getScreen().getDisplayNearestPoint(
 		getScreen().getCursorScreenPoint(),
 	).id;
-	areaSelectorWindows = getScreen()
+	capturePickerWindows = getScreen()
 		.getAllDisplays()
 		.map((display) => {
 			const win = new BrowserWindow({
@@ -1225,12 +1225,14 @@ export function createAreaSelectorWindows(onClosed: () => void): BrowserWindow[]
 				}
 			});
 			win.on("closed", () => {
-				const wasOpen = areaSelectorWindows.includes(win);
-				areaSelectorWindows = areaSelectorWindows.filter((candidate) => candidate !== win);
+				const wasOpen = capturePickerWindows.includes(win);
+				capturePickerWindows = capturePickerWindows.filter(
+					(candidate) => candidate !== win,
+				);
 				if (wasOpen) onClosed();
 			});
 
-			const query = { windowType: "area-selector", displayId: String(display.id) };
+			const query = { windowType: "capture-picker", displayId: String(display.id) };
 			if (VITE_DEV_SERVER_URL) {
 				win.loadURL(`${VITE_DEV_SERVER_URL}?${new URLSearchParams(query).toString()}`);
 			} else {
@@ -1238,12 +1240,12 @@ export function createAreaSelectorWindows(onClosed: () => void): BrowserWindow[]
 			}
 			return win;
 		});
-	return areaSelectorWindows;
+	return capturePickerWindows;
 }
 
-export function closeAreaSelectorWindows(): void {
-	const windows = areaSelectorWindows;
-	areaSelectorWindows = [];
+export function closeCapturePickerWindows(): void {
+	const windows = capturePickerWindows;
+	capturePickerWindows = [];
 	for (const win of windows) {
 		if (!win.isDestroyed()) win.close();
 	}

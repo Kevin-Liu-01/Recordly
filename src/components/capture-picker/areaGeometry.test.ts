@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { moveAreaRect, normalizeAreaRect, resizeAreaRect } from "./areaGeometry";
+import { frontmostAt, moveAreaRect, normalizeAreaRect, resizeAreaRect } from "./areaGeometry";
 
 const bounds = { width: 1000, height: 800 };
 
@@ -50,5 +50,19 @@ describe("area geometry", () => {
 			width: 200,
 			height: 200,
 		});
+	});
+});
+
+describe("frontmostAt", () => {
+	const back = { id: "back", rect: { x: 0, y: 0, width: 800, height: 600 } };
+	const front = { id: "front", rect: { x: 100, y: 100, width: 200, height: 200 } };
+
+	it("finds the frontmost window under a point", () => {
+		expect(frontmostAt([front, back], 150, 150)?.id).toBe("front");
+		expect(frontmostAt([front, back], 500, 500)?.id).toBe("back");
+	});
+
+	it("finds nothing over the desktop", () => {
+		expect(frontmostAt([front, back], 900, 700)).toBeNull();
 	});
 });
