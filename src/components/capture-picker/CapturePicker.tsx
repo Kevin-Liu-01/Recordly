@@ -99,19 +99,27 @@ export function CapturePicker() {
 
 	useEffect(() => {
 		let cancelled = false;
-		void window.electronAPI.getCapturePickerContext(displayId).then((context) => {
-			if (cancelled) return;
-			windowsRef.current = context.windows
-				.map((entry) => ({ window: entry, rect: toLocal(entry) }))
-				.filter((entry) => entry.rect.width > 0 && entry.rect.height > 0);
-			if (context.lastArea && !selectionRef.current) {
-				setSelection({ kind: "area", rect: toLocal(context.lastArea) });
-			} else if (context.cursor) {
-				const x = context.cursor.x - window.screenX;
-				const y = context.cursor.y - window.screenY;
-				if (rectContains(screenRect(), x, y)) setHover(targetAt(x, y));
-			}
-		});
+		// Reveal the window only after a frame with the picker's real state.
+		const reveal = () =>
+			requestAnimationFrame(() =>
+				requestAnimationFrame(() => window.electronAPI.capturePickerReady()),
+			);
+		window.electronAPI
+			.getCapturePickerContext(displayId)
+			.then((context) => {
+				if (cancelled) return;
+				windowsRef.current = context.windows
+					.map((entry) => ({ window: entry, rect: toLocal(entry) }))
+					.filter((entry) => entry.rect.width > 0 && entry.rect.height > 0);
+				if (context.lastArea && !selectionRef.current) {
+					setSelection({ kind: "area", rect: toLocal(context.lastArea) });
+				} else if (context.cursor) {
+					const x = context.cursor.x - window.screenX;
+					const y = context.cursor.y - window.screenY;
+					if (rectContains(screenRect(), x, y)) setHover(targetAt(x, y));
+				}
+			})
+			.finally(reveal);
 		return () => {
 			cancelled = true;
 		};

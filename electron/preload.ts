@@ -541,6 +541,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	getCapturePickerContext: (displayId: number) => {
 		return ipcRenderer.invoke("get-capture-picker-context", displayId);
 	},
+	capturePickerReady: () => {
+		ipcRenderer.send("capture-picker-ready");
+	},
 	getSelectedSource: () => {
 		return ipcRenderer.invoke("get-selected-source");
 	},

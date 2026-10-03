@@ -258,6 +258,8 @@ interface Window {
 			windows: CapturePickerWindow[];
 			cursor: { x: number; y: number } | null;
 		}>;
+		/** Reveals the picker window once it has painted its first state. */
+		capturePickerReady: () => void;
 		getSelectedSource: () => Promise<ProcessedDesktopSource | null>;
 		onSelectedSourceChanged: (
 			callback: (source: ProcessedDesktopSource | null) => void,

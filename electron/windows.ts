@@ -51,6 +51,8 @@ const HUD_OVERLAY_SETTINGS_FILE = path.join(USER_DATA_PATH, "hud-overlay-setting
 const HUD_EDGE_MARGIN_DIP = 16;
 const UPDATE_TOAST_WIDTH = 420;
 const UPDATE_TOAST_HEIGHT = 172;
+/** Shows a capture picker that never reported ready. */
+const CAPTURE_PICKER_READY_TIMEOUT_MS = 1500;
 
 function getEditorWindowQuery(): Record<string, string> {
 	const query: Record<string, string> = {
@@ -1216,13 +1218,21 @@ export function createCapturePickerWindows(onClosed: () => void): BrowserWindow[
 				skipTransformProcessType: true,
 			});
 			win.setBounds(display.bounds);
-			win.webContents.on("did-finish-load", () => {
-				if (win.isDestroyed()) return;
+			// The page paints the app's opaque background before React makes it
+			// transparent, so the overlay stays hidden until the picker has painted.
+			let shown = false;
+			const show = () => {
+				if (shown || win.isDestroyed()) return;
+				shown = true;
 				win.show();
 				if (display.id === cursorDisplayId) {
 					app.focus({ steal: true });
 					win.focus();
 				}
+			};
+			win.webContents.ipc.once("capture-picker-ready", show);
+			win.webContents.once("did-finish-load", () => {
+				setTimeout(show, CAPTURE_PICKER_READY_TIMEOUT_MS);
 			});
 			win.on("closed", () => {
 				const wasOpen = capturePickerWindows.includes(win);
