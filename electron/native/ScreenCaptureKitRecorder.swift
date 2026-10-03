@@ -160,12 +160,13 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 			)
 			// ScreenCaptureKit crops the display to the window natively, so menus and
 			// popovers over the window are still captured as they appear on screen.
-			streamConfig.sourceRect = Self.sourceRect(for: captureRect, on: display)
+			let sourceRect = Self.sourceRect(for: captureRect, on: display, scale: scaleFactor)
+			streamConfig.sourceRect = sourceRect
 			trackedWindowInitialFrame = window.frame
 			captureFrame = visibleFrame
 			captureDisplayId = display.displayID
-			outputWidth = max(2, Int(captureRect.width) * scaleFactor) & ~1
-			outputHeight = max(2, Int(captureRect.height) * scaleFactor) & ~1
+			outputWidth = Int((sourceRect.width * CGFloat(scaleFactor)).rounded())
+			outputHeight = Int((sourceRect.height * CGFloat(scaleFactor)).rounded())
 			streamConfig.width = outputWidth
 			streamConfig.height = outputHeight
 		} else {
@@ -228,6 +229,17 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
 		outputSettings[AVVideoWidthKey] = outputWidth
 		outputSettings[AVVideoHeightKey] = outputHeight
+		// The assistant sizes the bitrate for 30 fps. Scale it to the capture rate so
+		// text stays sharp while the screen scrolls or animates.
+		if var compression = outputSettings[AVVideoCompressionPropertiesKey] as? [String: Any] {
+			let assistantFPS = max(1, compression[AVVideoExpectedSourceFrameRateKey] as? Int ?? 30)
+			if let averageBitRate = compression[AVVideoAverageBitRateKey] as? Int {
+				compression[AVVideoAverageBitRateKey] = averageBitRate * requestedFPS / assistantFPS
+			}
+			compression[AVVideoExpectedSourceFrameRateKey] = requestedFPS
+			compression[AVVideoMaxKeyFrameIntervalKey] = requestedFPS
+			outputSettings[AVVideoCompressionPropertiesKey] = compression
+		}
 		outputSettings[AVVideoColorPropertiesKey] = [
 			AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_709_2,
 			AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_709_2,
@@ -888,7 +900,11 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 				}
 				let captureRect = frame.intersection(display.frame)
 				guard captureRect.width > 0, captureRect.height > 0, let activeStream = self.stream else { continue }
-				let sourceRect = Self.sourceRect(for: captureRect, on: display)
+				let sourceRect = Self.sourceRect(
+					for: captureRect,
+					on: display,
+					scale: Self.scaleFactor(for: display.displayID)
+				)
 
 				if currentDisplayId != display.displayID {
 					let excludedApplications = availableContent.applications.filter {
@@ -920,9 +936,22 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		}
 	}
 
-	/// `sourceRect` is in points relative to the display's top-left corner.
-	private static func sourceRect(for captureRect: CGRect, on display: SCDisplay) -> CGRect {
-		captureRect.offsetBy(dx: -display.frame.minX, dy: -display.frame.minY)
+	/// `sourceRect` is in points relative to the display's top-left corner. Its edges
+	/// sit on whole pixels and its size is an even number of pixels, so the recording
+	/// gets the screen's own pixels instead of a resampled copy.
+	private static func sourceRect(for captureRect: CGRect, on display: SCDisplay, scale: Int) -> CGRect {
+		let pixelsPerPoint = CGFloat(scale)
+		let local = captureRect.offsetBy(dx: -display.frame.minX, dy: -display.frame.minY)
+		let left = (local.minX * pixelsPerPoint).rounded()
+		let top = (local.minY * pixelsPerPoint).rounded()
+		let width = max(2, Int((local.maxX * pixelsPerPoint).rounded() - left) & ~1)
+		let height = max(2, Int((local.maxY * pixelsPerPoint).rounded() - top) & ~1)
+		return CGRect(
+			x: left / pixelsPerPoint,
+			y: top / pixelsPerPoint,
+			width: CGFloat(width) / pixelsPerPoint,
+			height: CGFloat(height) / pixelsPerPoint
+		)
 	}
 
 	private static func rect(_ lhs: CGRect, isCloseTo rhs: CGRect) -> Bool {
