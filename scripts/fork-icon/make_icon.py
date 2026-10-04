@@ -1,4 +1,4 @@
-"""Recolor Recordly's blue icon to crimson, add gold sparkles and an avatar badge.
+"""Recolor Recordly's blue icon to crimson, add gold sparkles and an optional avatar badge.
 
 Usage: python3 make_icon.py <blue-1024.png> <out.png> <mac|rounded|flat> [avatar.png]
 
@@ -124,11 +124,28 @@ def rounded_mask(size, box, radius, scale=4):
     return big.resize((size, size), Image.LANCZOS)
 
 
-def add_avatar_badge(image, avatar_path, center, badge_size, border):
-    """A rounded tag with the owner's avatar on the icon's bottom-right corner."""
+def badge_center_inside(shape, outer, margin):
+    """The point nearest the bottom-right corner, on the diagonal, where a badge of
+    width `outer` plus `margin` stays inside the icon's opaque shape. macOS 26 puts an
+    icon whose outline is not a plain rounded square on a gray plate, so the badge
+    must not change the outline."""
+    size = shape.size[0]
+    solid = np.asarray(shape) > 250
+    reach = outer / 2 + margin
+    for center in np.arange(size - reach, size / 2, -2.0):
+        box = (center - reach, center - reach, center + reach, center + reach)
+        badge = np.asarray(rounded_mask(size, box, reach * 0.6)) > 8
+        if not (badge & ~solid).any():
+            return center
+    return size / 2
+
+
+def add_avatar_badge(image, avatar_path, badge_size, border, margin):
+    """A rounded tag with the owner's avatar in the icon's bottom-right corner,
+    kept inside the icon's shape."""
     size = image.size[0]
-    cx, cy = center[0] * size, center[1] * size
     outer = badge_size * size
+    cx = cy = badge_center_inside(image.getchannel("A"), outer, margin * size)
     ring = border * size
     radius = outer * 0.3
     box = (cx - outer / 2, cy - outer / 2, cx + outer / 2, cy + outer / 2)
@@ -175,10 +192,11 @@ if __name__ == "__main__":
         # Full-bleed square.
         "flat": [(0.835, 0.165, 0.085), (0.915, 0.275, 0.030), (0.735, 0.085, 0.018)],
     }[layout]
+    # Badge width, rim and the clearance it keeps from the icon's edge.
     badge = {
-        "mac": ((0.79, 0.79), 0.27, 0.016),
-        "rounded": ((0.80, 0.80), 0.29, 0.016),
-        "flat": ((0.81, 0.81), 0.30, 0.016),
+        "mac": (0.24, 0.015, 0.03),
+        "rounded": (0.26, 0.015, 0.03),
+        "flat": (0.27, 0.015, 0.03),
     }[layout]
     icon = add_sparkles(recolor(image), stars)
     if len(sys.argv) > 4:
