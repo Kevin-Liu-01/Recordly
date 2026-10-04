@@ -1,7 +1,7 @@
 Language: EN | [简中](README.zh-CN.md)
 
 <p align="center">
-  <img width="168" alt="The Recordly mark in red with gold sparkles and the maintainer's avatar" src="public/app-icons/recordlymac-512.png" />
+  <img width="168" alt="The Recordly mark in red with gold sparkles" src="public/app-icons/recordlymac-512.png" />
 </p>
 
 <h1 align="center">Recordly for macOS, with clean audio</h1>
