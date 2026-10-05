@@ -190,6 +190,6 @@ test("a selection box picks several zooms and deletes them in one undo step", as
 	await page.keyboard.press("Delete");
 	await expect(zooms).toHaveCount(1);
 	expect(Number(await zooms.getAttribute("data-start-ms"))).toBeLessThan(1000);
-	await page.keyboard.press("Meta+z");
+	await page.keyboard.press("ControlOrMeta+z");
 	await expect(zooms).toHaveCount(3);
 });
