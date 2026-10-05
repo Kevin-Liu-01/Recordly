@@ -11,6 +11,7 @@ type TrackResult = { frames: number; channels: number; rms: number[]; leftEquals
 describe.skipIf(process.platform !== "darwin")("AudioTimelineTrack", () => {
 	let directory: string;
 	let results: Record<string, TrackResult>;
+	let warnings: string;
 
 	beforeAll(() => {
 		directory = mkdtempSync(join(tmpdir(), "recordly-audio-track-"));
@@ -101,6 +102,16 @@ Task {
 	entries.append(await run("monoMic", padTo: 4_800) { track in
 		for index in 0..<10 { track.append(tone(frames: 240, rate: 24_000, channels: 1), at: at(Double(index) * 0.01)) }
 	})
+	// A writer that has stopped never takes audio again, so the track must not queue any for it.
+	let writer = try! AVAssetWriter(outputURL: URL(fileURLWithPath: directory).appendingPathComponent("cancelled.mp4"), fileType: .mp4)
+	let input = AVAssetWriterInput(mediaType: .audio, outputSettings: [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 48_000, AVNumberOfChannelsKey: 2])
+	writer.add(input)
+	writer.startWriting()
+	writer.startSession(atSourceTime: .zero)
+	writer.cancelWriting()
+	let cancelled = try! AudioTimelineTrack(label: "cancelled", sidecarURL: nil, sidecarBitRate: 160_000, inlineInput: input, inlineWriter: writer)
+	for index in 0..<5 { cancelled.append(tone(frames: 960), at: at(Double(index) * 0.02)) }
+	_ = await cancelled.finish(padTo: 4_800)
 	print("{" + entries.joined(separator: ",") + "}")
 	done.signal()
 }
@@ -123,6 +134,7 @@ done.wait()
 		const run = spawnSync(executable, [directory], { encoding: "utf8", timeout: 60_000 });
 		expect(run.status, run.stderr).toBe(0);
 		results = JSON.parse(run.stdout);
+		warnings = run.stderr;
 	}, 180_000);
 
 	afterAll(() => {
@@ -169,5 +181,9 @@ done.wait()
 		expect(channels).toBe(2);
 		expect(leftEqualsRight).toBe(true);
 		expect(rms.slice(1, 8).every(isTone)).toBe(true);
+	});
+
+	it("queues no audio for a writer that has stopped", () => {
+		expect(warnings).not.toContain("cancelled audio buffers never reached");
 	});
 });
