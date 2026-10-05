@@ -7,7 +7,7 @@ Language: EN | [简中](README.zh-CN.md)
 <h1 align="center">Recordly for macOS, with clean audio</h1>
 
 <p align="center">
-  A fork of <a href="https://github.com/webadderallorg/Recordly">Recordly</a> that records clean system and microphone audio on macOS, adds an on-screen picker for windows, screens and any area, and keeps recording still screens until you stop.
+  A fork of <a href="https://github.com/webadderallorg/Recordly">Recordly</a> that records clean system and microphone audio on macOS, records windows and any area of the screen pixel for pixel, exports with the audio in sync, and makes trimming and clearing zooms quick.
 </p>
 
 <p align="center">
@@ -15,15 +15,21 @@ Language: EN | [简中](README.zh-CN.md)
   <img src="https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=for-the-badge" alt="AGPL 3.0 license" />
 </p>
 
+![My Claude of Tanks project open in the editor, with a zoom selected](docs/media/fork/editor.jpg)
+
 ## What this fork changes
 
 | | Upstream Recordly | This fork |
 | --- | --- | --- |
 | **Audio** | Drops 20 ms of audio whenever the encoder is briefly busy and splices the rest together. Tracks run short, click at each splice and drift out of sync; the editor then stretches or delays them to fit the video. | Writes every buffer, fills delivery gaps with silence and keeps every track exactly as long as the video. |
 | **Window recordings** | Lose 25–70% of their audio and run near 46 fps, because each 4K frame is cropped in software. | Lose no audio and run near 57 fps. ScreenCaptureKit crops the display natively. |
+| **Sharpness** | A window with an odd width or height on a 1x display is scaled by a fraction of a pixel and blurs. The bitrate is sized for 30 fps while recordings run at 60. | Crops land on whole screen pixels, and the bitrate is sized for 60 fps. |
+| **Exports** | Exported audio lands 44 ms after the video. | Exported audio lines up with the video. |
 | **After the countdown** | Audio is dropped until something on screen changes. | Audio is kept from the moment recording resumes. |
 | **Still screens** | A still window or area may never start recording, and the video ends at the last screen change. | Recording starts at once and lasts until you press stop. |
 | **Choosing a source** | Lists of screens and windows. | The lists, plus an on-screen picker for windows, screens and any area you drag. |
+| **Trimming** | Drag a 6 px strip just inside a clip's edge, or split the clip and delete a piece. | Q and W trim to the playhead, the clip grips start a trim when you grab them, and a dragged edge snaps to the playhead. |
+| **Clearing zooms** | Select and delete each zoom, or select all of them with Cmd+A. | Drag a box across any zooms and delete them together. |
 | **Updates** | Updates itself from upstream releases. | Never auto-updates. Rebuild the fork to update. |
 
 It also uses Inter for the interface, Berkeley Mono for code when it is installed, and a red icon so it is easy to tell apart from an official install.
@@ -32,10 +38,27 @@ It also uses Inter for the interface, Berkeley Mono for code when it is installe
 
 macOS delivers system audio to Recordly in 20 ms buffers. Upstream's capture helper appended each buffer to an AAC encoder and discarded it whenever the encoder reported it was busy. `AVAssetWriter` joins the buffers it receives end to end, so every discarded buffer removed 20 ms from the track and left a click where the neighbors met. Audio shared one queue with video, and in window recordings a software crop of every full-display frame held that queue for up to 200 ms. The audio then arrived in bursts the encoder refused, so a quarter or more of it was lost. The editor saw a track shorter than the video and delayed or time-stretched it, which turned the clicks into garbled, drifting sound.
 
+![Audio missing from my Recordly 1.4.0 recordings](docs/media/fork/audio-missing.png)
+
 This fork receives audio on its own queue and writes each source to a timeline track. The track encodes synchronously, so it never refuses a buffer. It places every buffer at its timestamp, fills gaps with silence, trims overlap, and pads the track to the end of the video. Measured on the same machine:
 
 - In a 28-second window recording, macOS delivered 1,404 buffers with no gaps. Upstream kept 1,033 of them and saved 20.7 s of audio. The fork keeps every buffer and saves audio exactly as long as the video.
 - In 30 seconds of real audio, upstream's file had 9 splice clicks, each on a buffer boundary. The fork's had none.
+- While a window that redraws every frame was recording, upstream lost 648 ms of a test tone in 14 seconds and the fork lost 2 ms.
+
+![A test tone recorded while a busy window is captured](docs/media/fork/tone-test.png)
+
+Exports had a separate problem. The exporter decodes audio with WebCodecs, which returns the 2112 samples of encoder priming at the start of every AAC file, and it kept them. Exported audio landed 44 ms after the video while the editor preview played in sync. The fork drops the priming, and exports now match their source within a millisecond.
+
+## Sharper window and area recordings
+
+Upstream rounded a window's crop down to an even number of pixels and scaled the window into it. On a 1x display, any window with an odd width or height came out blurred. The fork snaps the crop to whole pixels and trims it to an even size, so a recording holds the screen's own pixels.
+
+![A 401 by 301 point window recorded on a 1x display](docs/media/fork/odd-width-window.png)
+
+The encoder bitrate came from settings meant for 30 fps, while Recordly records at 60. Text smeared while the screen scrolled. The fork scales the bitrate to the capture rate and keeps one keyframe per second.
+
+![One frame of fast scrolling encoded at each bitrate](docs/media/fork/scrolling-bitrate.png)
 
 ## Using the picker
 
@@ -45,6 +68,33 @@ This fork receives audio on its own queue and writes each source to a timeline t
 4. Press **Record**, **Enter** or double-click to start recording. **Select** picks without recording. **Esc** cancels.
 
 A dashed outline marks the area while it records. The outline sits outside the recorded rectangle and is not captured.
+
+<p align="center">
+  <img width="520" alt="The source menu opens the picker" src="docs/media/fork/picker-menu.png" />
+</p>
+
+| Hovering a window | An area ready to record |
+| --- | --- |
+| <img alt="The picker shows the hovered window's name and size" src="docs/media/fork/picker-window.png" /> | <img alt="A dragged area with its size, handles and toolbar" src="docs/media/fork/picker-area.png" /> |
+
+## Trimming
+
+1. Put the playhead where the video should start and press **Q**, or click **Trim Start to Playhead** next to Split. Everything before the playhead is cut and the rest moves back to the start.
+2. Put the playhead where the video should end and press **W**, or click **Trim End to Playhead**.
+
+One undo restores a trim, and zooms and annotations move with their footage. The white grips at a clip's ends now start a trim when you grab them, and a dragged edge snaps to the playhead.
+
+<p align="center">
+  <img width="380" alt="The Trim Start and Trim End buttons next to Split" src="docs/media/fork/trim-buttons.png" />
+</p>
+
+## Clearing zooms
+
+Press on empty space in the zoom row and drag across the zooms you want to remove. Every zoom the box touches gets a white outline, and a bar shows how many are selected. Delete, Backspace or the bar's button removes them all, and one Cmd+Z brings them back.
+
+![Dragging a selection box across six zooms](docs/media/fork/zoom-selection-drag.png)
+
+![Six zooms selected, with the bar that deletes them](docs/media/fork/zoom-selection-bar.png)
 
 ## Build and install (Apple Silicon)
 
