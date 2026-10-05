@@ -31,10 +31,15 @@ test("Q and W trim the clip to the playhead and undo restores it", async ({ page
 	await expect.poll(async () => (await spanFor(clip(page))).end).toBe(6000 - startCut);
 	expect((await spanFor(clip(page))).start).toBe(0);
 	await expect(page.getByTestId("playhead-cap")).toHaveAttribute("aria-label", "Playhead 0.0s");
-	await page.keyboard.press("Meta+z");
+	await page.keyboard.press("ControlOrMeta+z");
 	await expect(clip(page)).toHaveAttribute("data-end-ms", "6000");
 
 	const endCut = await seekTo(page, 0.5);
+	await page.keyboard.press("w");
+	await expect(clip(page)).toHaveAttribute("data-end-ms", String(endCut));
+	await page.keyboard.press("ControlOrMeta+z");
+	await expect(clip(page)).toHaveAttribute("data-end-ms", "6000");
+
 	await page.getByRole("button", { name: "Trim End to Playhead (W)", exact: true }).click();
 	await expect(clip(page)).toHaveAttribute("data-end-ms", String(endCut));
 });

@@ -190,8 +190,8 @@
 	"toolbar": {
 		"addLayer": "Adicionar camada",
 		"splitClip": "Dividir clipe (C)",
-		"trimStart": "Cortar o início até o cursor de reprodução (Q)",
-		"trimEnd": "Cortar o final a partir do cursor de reprodução (W)"
+		"trimStart": "Cortar o início até o cursor de reprodução ({{shortcut}})",
+		"trimEnd": "Cortar o final a partir do cursor de reprodução ({{shortcut}})"
 	},
 	"timeline": {
 		"expand": "Expandir linha do tempo",
