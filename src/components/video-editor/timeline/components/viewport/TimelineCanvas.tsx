@@ -411,6 +411,7 @@ interface TimelineCanvasRowsProps {
 	videoPath?: string | null;
 	items: TimelineRenderItem[];
 	videoDurationMs: number;
+	currentTimeMs: number;
 	selectAllBlocksActive: boolean;
 	selectedZoomIds?: readonly string[];
 	onSelectZoomIds?: (ids: string[]) => void;
@@ -491,6 +492,7 @@ const TimelineCanvasRows = memo(function TimelineCanvasRows({
 	videoPath,
 	items,
 	videoDurationMs,
+	currentTimeMs,
 	selectAllBlocksActive,
 	selectedZoomIds,
 	onSelectZoomIds,
@@ -807,6 +809,7 @@ const TimelineCanvasRows = memo(function TimelineCanvasRows({
 						videoPath={videoPath}
 						sourceSpan={item.sourceSpan ?? item.span}
 						speedValue={item.speedValue}
+						snapToMs={currentTimeMs}
 					>
 						{item.label}
 					</Item>
@@ -1285,6 +1288,7 @@ export default function TimelineCanvas({
 					videoPath={videoPath}
 					items={items}
 					videoDurationMs={videoDurationMs}
+					currentTimeMs={currentTimeMs}
 					selectAllBlocksActive={selectAllBlocksActive}
 					selectedZoomIds={selectedZoomIds}
 					onSelectZoomIds={onSelectZoomIds}

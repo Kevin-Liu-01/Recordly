@@ -22,6 +22,8 @@ interface UseTimelineKeyboardShortcutsParams {
 	addKeyframe: () => void;
 	handleAddZoom: () => void;
 	handleSplitClip: () => void;
+	handleTrimStart?: () => void;
+	handleTrimEnd?: () => void;
 	handleAddAnnotation: () => void;
 	deleteSelectedKeyframe: () => void;
 	deleteSelectedZoom: () => void;
@@ -51,6 +53,8 @@ export function useTimelineKeyboardShortcuts({
 	addKeyframe,
 	handleAddZoom,
 	handleSplitClip,
+	handleTrimStart,
+	handleTrimEnd,
 	handleAddAnnotation,
 	deleteSelectedKeyframe,
 	deleteSelectedZoom,
@@ -115,6 +119,18 @@ export function useTimelineKeyboardShortcuts({
 				return;
 			}
 
+			// Trimming to the playhead works wherever the playhead was set, like Delete.
+			if (keyShortcuts.trimStart && matchesShortcut(e, keyShortcuts.trimStart, isMac)) {
+				e.preventDefault();
+				handleTrimStart?.();
+				return;
+			}
+			if (keyShortcuts.trimEnd && matchesShortcut(e, keyShortcuts.trimEnd, isMac)) {
+				e.preventDefault();
+				handleTrimEnd?.();
+				return;
+			}
+
 			if (e.key === "Escape" && (selectAllBlocksActive || selectedZoomIds.length > 0)) {
 				e.preventDefault();
 				clearSelectedBlocks?.();
@@ -165,6 +181,8 @@ export function useTimelineKeyboardShortcuts({
 		handleAddAnnotation,
 		handleAddZoom,
 		handleSplitClip,
+		handleTrimEnd,
+		handleTrimStart,
 		hasAnyZoomBlocks,
 		isMac,
 		isTimelineFocusedRef,

@@ -189,7 +189,9 @@
 	},
 	"toolbar": {
 		"addLayer": "Aggiungi livello",
-		"splitClip": "Dividi clip (C)"
+		"splitClip": "Dividi clip (C)",
+		"trimStart": "Taglia l'inizio fino alla testina (Q)",
+		"trimEnd": "Taglia la fine dalla testina (W)"
 	},
 	"timeline": {
 		"expand": "Espandi timeline",

@@ -10,6 +10,8 @@ import {
 	Play,
 	Plus,
 	Scissors,
+	TrimEnd,
+	TrimStart,
 	SkipBack,
 	SkipForward,
 	SpeakerHigh,
@@ -297,6 +299,24 @@ export function EditorPreviewPanel(props: Props) {
 						title={t("editor.toolbar.splitClip")}
 					>
 						<Scissors className="h-4 w-4" />
+					</Button>
+					<Button
+						onClick={() => timelineRef.current?.trimStart()}
+						variant="ghost"
+						size="icon"
+						className="h-9 w-9"
+						title={t("editor.toolbar.trimStart")}
+					>
+						<TrimStart className="h-4 w-4" />
+					</Button>
+					<Button
+						onClick={() => timelineRef.current?.trimEnd()}
+						variant="ghost"
+						size="icon"
+						className="h-9 w-9"
+						title={t("editor.toolbar.trimEnd")}
+					>
+						<TrimEnd className="h-4 w-4" />
 					</Button>
 				</div>
 
