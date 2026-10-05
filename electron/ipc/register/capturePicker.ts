@@ -1,5 +1,9 @@
 import { ipcMain } from "electron";
-import { closeCapturePickerWindows, createCapturePickerWindows } from "../../windows";
+import {
+	closeCapturePickerWindows,
+	createCapturePickerWindows,
+	isCapturePickerWebContents,
+} from "../../windows";
 import { getNativeMacWindowsFrontToBack, stopWindowBoundsCapture } from "../cursor/bounds";
 import { setSelectedSource } from "../state";
 import { createAreaSource, createWindowSource, normalizeCapturePick } from "../sourceArea";
@@ -115,7 +119,9 @@ export function registerCapturePickerHandlers() {
 		return { success: true, source, record: pick.record };
 	});
 
-	ipcMain.handle("complete-capture-pick", async (_, input: unknown) => {
+	ipcMain.handle("complete-capture-pick", async (event, input: unknown) => {
+		// Only the picker overlays answer a pick.
+		if (!isCapturePickerWebContents(event.sender)) return;
 		if (!input) {
 			finishPick(null);
 			return;

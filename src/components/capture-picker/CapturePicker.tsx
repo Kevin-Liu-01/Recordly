@@ -25,8 +25,15 @@ type Selection = Target | { kind: "area"; rect: AreaRect };
 type Drag =
 	| { kind: "press"; startX: number; startY: number }
 	| { kind: "draw"; originX: number; originY: number }
-	| { kind: "move"; startX: number; startY: number; rect: AreaRect }
-	| { kind: "resize"; handle: AreaHandle; startX: number; startY: number; rect: AreaRect };
+	| { kind: "move"; startX: number; startY: number; rect: AreaRect; moved: boolean }
+	| {
+			kind: "resize";
+			handle: AreaHandle;
+			startX: number;
+			startY: number;
+			rect: AreaRect;
+			moved: boolean;
+	  };
 
 const TOOLBAR_HEIGHT = 44;
 const TOOLBAR_GAP = 12;
@@ -190,6 +197,7 @@ export function CapturePicker() {
 				startX: event.clientX,
 				startY: event.clientY,
 				rect: current.rect,
+				moved: false,
 			};
 		} else if (current && rectContains(current.rect, event.clientX, event.clientY)) {
 			dragRef.current = {
@@ -197,6 +205,7 @@ export function CapturePicker() {
 				startX: event.clientX,
 				startY: event.clientY,
 				rect: current.rect,
+				moved: false,
 			};
 		} else {
 			dragRef.current = { kind: "press", startX: event.clientX, startY: event.clientY };
@@ -245,7 +254,8 @@ export function CapturePicker() {
 		const dx = event.clientX - active.startX;
 		const dy = event.clientY - active.startY;
 		// A click inside a picked window keeps it; only real movement turns it into an area.
-		if (!dragging && Math.hypot(dx, dy) < DRAG_THRESHOLD / 2) return;
+		if (!active.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD / 2) return;
+		active.moved = true;
 		setDragging(true);
 		setSelection({
 			kind: "area",

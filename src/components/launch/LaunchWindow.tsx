@@ -15,6 +15,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef } from "react";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "@/components/ui/toast";
 import { useScopedT } from "../../contexts/I18nContext";
 import { useMicrophoneDevices } from "../../hooks/useMicrophoneDevices";
 import { useScreenRecorder } from "../../hooks/useScreenRecorder";
@@ -188,7 +189,10 @@ function LaunchWindowContent() {
 
 	const handlePickOnScreen = async () => {
 		const result = await window.electronAPI.pickCaptureTarget();
-		if (!result.success) return;
+		if (!result.success) {
+			if (!result.canceled && result.message) toast.error(result.message);
+			return;
+		}
 		if (result.record) {
 			toggleRecording();
 		} else if (result.source) {
