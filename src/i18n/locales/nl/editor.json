@@ -190,7 +190,9 @@
 	},
 	"toolbar": {
 		"addLayer": "Laag toevoegen",
-		"splitClip": "Clip splitsen (C)"
+		"splitClip": "Clip splitsen (C)",
+		"trimStart": "Begin tot de afspeelkop inkorten (Q)",
+		"trimEnd": "Einde vanaf de afspeelkop inkorten (W)"
 	},
 	"timeline": {
 		"expand": "Tijdlijn uitvouwen",
