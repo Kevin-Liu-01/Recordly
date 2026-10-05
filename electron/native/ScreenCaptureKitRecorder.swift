@@ -274,13 +274,23 @@ final class AudioTimelineTrack {
 				self.sidecar = nil
 			}
 		}
-		if inlineInput != nil,
-		   let sampleBuffer = Self.makeSampleBuffer(from: buffer, at: endTime) {
-			pendingInline.append(sampleBuffer)
-			maxPendingInline = max(maxPendingInline, pendingInline.count)
-			drainInline()
+		if inlineInput != nil {
+			if !inlineWriterTakesData {
+				// A failed, cancelled or finished writer never takes audio again, so hold none.
+				pendingInline.removeAll()
+			} else if let sampleBuffer = Self.makeSampleBuffer(from: buffer, at: endTime) {
+				pendingInline.append(sampleBuffer)
+				maxPendingInline = max(maxPendingInline, pendingInline.count)
+				drainInline()
+			}
 		}
 		framesWritten += Int64(buffer.frameLength)
+	}
+
+	/// The writer has not started yet or is writing. Every other state is final.
+	private var inlineWriterTakesData: Bool {
+		guard let status = inlineWriter?.status else { return false }
+		return status == .unknown || status == .writing
 	}
 
 	private func drainInline() {
